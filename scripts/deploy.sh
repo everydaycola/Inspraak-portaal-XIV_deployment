@@ -58,7 +58,7 @@ gcloud compute instance-templates create "$INSTANCE_TEMPLATE_NAME" \
 	--image-family="$IMAGE_FAMILY" \
 	--image-project="$IMAGE_PROJECT" \
 	--metadata=startup-script="$(cat $STARTUP_SCRIPT)" \
-	--tags=http-server \
+	--tags=http-server,https-server \
 	--scopes=cloud-platform
 echo_in_green "Template created."
 
@@ -123,5 +123,12 @@ gcloud compute firewall-rules create "$FIREWALL_RULE_NAME" \
 	--target-tags http-server \
 	--description "Allow HTTP traffic"
 echo_in_green "Load Balancer created."
+
+# --- SSH and Application Deployment ---
+echo_in_green "Copying published artifacts to VM..."
+gcloud compute scp -r ./publish/* $INSTANCE_NAME:$APP_DIR --zone $ZONE  # -r for recursive
+
+echo_in_green "SSHing into VM and starting application..."
+gcloud compute ssh $INSTANCE_NAME --zone $ZONE --command "bash $APP_DIR/startup-script.sh"
 
 echo_in_green "Deployment complete. Access your app via the load balancer. IP: $(gcloud compute forwarding-rules list --global --format='value(IPAddress)')"
