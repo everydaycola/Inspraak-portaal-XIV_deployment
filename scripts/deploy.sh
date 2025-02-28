@@ -24,7 +24,6 @@ command_exists() {
 	command -v "$1" >/dev/null 2>&1
 }
 
-
 # Check prerequisites
 if ! command_exists gcloud; then
 	echo "Error: gcloud CLI is not installed"
@@ -36,7 +35,7 @@ if ! gcloud auth list --format="value(account)" | grep -q "@"; then
 	exit 1
 fi
 
-# Check if "project" has a value 
+# Check if "project" has a value
 if [ -z "$(gcloud config get-value project 2>/dev/null)" ]; then
 	echo "Error: No GCP project is set. Run gcloud config set project [PROJECT_ID]"
 	exit 1
@@ -44,8 +43,8 @@ fi
 
 # Check if "compute/zone" has a value
 if [ -z "$(gcloud config get-value compute/zone 2>/dev/null)" ]; then
-    echo "Error: No compute zone is set. Run: gcloud config set compute/zone [ZONE]"
-    exit 1
+	echo "Error: No compute zone is set. Run: gcloud config set compute/zone [ZONE]"
+	exit 1
 fi
 
 echo_in_green "Checks finnished with no problems."
@@ -129,11 +128,13 @@ gcloud compute firewall-rules create "$FIREWALL_RULE_NAME" \
 	--description "Allow HTTP traffic"
 echo_in_green "Load Balancer created."
 
-# --- SSH and Application Deployment ---
-echo_in_green "Copying published artifacts to VM..."
-gcloud compute scp -r ./publish/* $INSTANCE_NAME:$APP_DIR --zone $ZONE  # -r for recursive
+# Verkrijg de naam van de eerste instantie in de Instance Group
+INSTANCE_NAME=$(gcloud compute instance-groups managed list-instances "$INSTANCE_GROUP_NAME" --zone="$ZONE" --format="value(name)" | head -n 1)
 
-echo_in_green "SSHing into VM and starting application..."
-gcloud compute ssh $INSTANCE_NAME --zone $ZONE --command "bash $APP_DIR/startup-script.sh"
+# Kopieer de bestanden naar de VM
+gcloud compute scp --recurse ./publish/* "$INSTANCE_NAME:$APP_DIR" --zone $ZONE
+
+# SSH naar de VM en start de applicatie
+gcloud compute ssh "$INSTANCE_NAME" --zone="$ZONE" --command "bash $APP_DIR/startup-script.sh"
 
 echo_in_green "Deployment complete. Access your app via the load balancer. IP: $(gcloud compute forwarding-rules list --global --format='value(IPAddress)')"

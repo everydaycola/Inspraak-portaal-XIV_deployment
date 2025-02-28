@@ -1,51 +1,84 @@
 #!/bin/bash
 
-# TODO fix SSH between gitlab and google cloud, currently the VMs are not able to clone the code
-# Set up environment variables
-APP_DIR="/home/ubuntu/myapp"
-REPO_URL="git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git"
-PUBLISH_DIR="$APP_DIR/publish"
-DOTNET_DLL="$PUBLISH_DIR/UI-MVC.dll"
+# Zorg ervoor dat de SSH-map bestaat
+mkdir -p $HOME/.ssh
+chmod 700 $HOME/.ssh
 
-# Update packages
-sudo apt update -y
-sudo apt install -y nginx
+#  Haal de private SSH-sleutel op uit Google Secret Manager
+gcloud secrets versions access latest --secret=gitlab-ssh-key >$HOME/.ssh/gitlab_key
+chmod 600 $HOME/gitlab_key/gitlab_key
 
-# Install .NET SDK
-wget https://packages.microsoft.com/keys/microsoft.asc
-sudo apt-key add microsoft.asc
-sudo apt-add-repository https://packages.microsoft.com/ubuntu/$(lsb_release -r | awk "{print \$2}")/prod
-sudo apt update
-sudo apt install -y dotnet-sdk-8.0
+# Configureer SSH om GitLab te gebruiken
+cat <<EOF >$HOME/gitlab_key/config
+Host gitlab.com
+  IdentityFile $HOME/gitlab_key/gitlab_key
+  StrictHostKeyChecking no
+EOF
+chmod 600 $HOME/gitlab_key/config
 
-# Dit werkt nog niet, weet niet hoe het te fixen
-# --- Set up SSH Key from CI/CD Variable ---
-mkdir -p /home/ubuntu/.ssh
-echo "$DEPLOY_KEY" > /home/ubuntu/.ssh/id_rsa  # Use the CI/CD variable
-chmod 600 /home/ubuntu/.ssh/id_rsa # Set correct permissions
+#  Test SSH-verbinding met GitLab
+ssh -T git@gitlab.com || echo "SSH connection failed"
 
-# Clone the GitLab repository or pull the latest changes
-APP_DIR="/home/ubuntu/myapp"
-git clone https://gitlab.com/kdg-ti/integratieproject-1/202425/14_team-14/development.git $APP_DIR
+#  Installeer Nginx
+apt-get update
+apt-get install -y nginx
 
-# Publish the .NET app
-dotnet publish -c Release -o $APP_DIR/publish
+# Installeer Git
+apt-get install -y git
 
-# Set up nginx as reverse proxy for .NET app
-sudo systemctl stop nginx
-sudo rm /etc/nginx/sites-enabled/default
-echo "server {
+wget https://packages.microsoft.com/config/ubuntu/20.04/prod.list
+mv prod.list /etc/apt/sources.list.d/microsoft-prod.list
+wget -q https://packages.microsoft.com/keys/microsoft.asc -O- | apt-key add -
+apt-get update
+apt-get install -y dotnet-sdk-8.0 # Vervang door de juiste versie van .NET die je nodig hebt
+
+# Clone de repository
+export GIT_SSH_COMMAND="ssh -i $HOME/gitlab_key -o StrictHostKeyChecking=no"
+chmod 600 $HOME/gitlab_key
+git clone git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git /var/www/myapp || echo "Git clone failed"
+cd /var/www/myapp
+
+# Controleer of .NET is geïnstalleerd
+dotnet --version || {
+  echo ".NET installation failed"
+  exit 1
+}
+
+# Optioneel: Bouw de .NET applicatie
+if ! dotnet publish -c Release -o /var/www/myapp/out; then
+  echo "Dotnet build failed. Please check the logs for errors."
+  exit 1
+fi
+
+# Zet Nginx om als reverse proxy
+cat <<EOF >/etc/nginx/sites-available/myapp
+server {
     listen 80;
-    server_name _;
+    server_name myapp.example.com;
 
     location / {
-        proxy_pass http://localhost:5000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_pass http://localhost:5000;  # Zorg ervoor dat de .NET-app op deze poort draait
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
     }
-}" | sudo tee /etc/nginx/sites-available/default
+}
+EOF
 
-# Restart nginx to apply new configuration
-sudo systemctl restart nginx
+#  Maak een symlink naar sites-enabled
+ln -s /etc/nginx/sites-available/myapp /etc/nginx/sites-enabled/
+
+# Test Nginx configuratie
+nginx -t || {
+  echo "Nginx configuration failed"
+  exit 1
+}
+
+# Start Nginx
+systemctl restart nginx
+
+#  (Optioneel) Start de .NET applicatie
+cd /var/www/myapp/out
+nohup dotnet myapp.dll &
