@@ -32,5 +32,9 @@ gcloud compute instance-templates delete "$INSTANCE_TEMPLATE_NAME" --quiet
 echo_in_orange "Deleting firewall rule..."
 gcloud compute firewall-rules delete "$FIREWALL_RULE_NAME" --quiet
 
+echo_in_orange "Unsetting gcloud variables"
+gcloud config unset project
+gcloud config unset compute/zone
+
 echo_in_orange "Cleanup complete. All resources have been deleted."
 

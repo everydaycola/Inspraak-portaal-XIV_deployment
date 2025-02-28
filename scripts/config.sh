@@ -10,8 +10,8 @@ INSTANCE_TEMPLATE_NAME="web-instance-template"
 INSTANCE_GROUP_NAME="web-instance-group"
 MACHINE_TYPE="e2-medium"
 MIN_INSTANCES=2
-MAX_REPLICAS=5
-CPU_UTILIZATION=0.6 # Autoscale when CPU > 60%
+MAX_INSTANCES=5
+TARGET_CPU_UTILIZATION=0.6 # Autoscale when CPU > 60%
 
 # Image Info
 IMAGE_FAMILY="ubuntu-2004-lts"

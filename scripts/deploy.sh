@@ -75,9 +75,9 @@ echo_in_green "Setting up autoscaler..."
 # Set up Autoscaler
 gcloud compute instance-groups managed set-autoscaling "$INSTANCE_GROUP_NAME" \
 	--zone="$ZONE" \
-	--min-num-replicas=$MIN_INSTANCES \
-	--max-num-replicas=$MAX_INSTANCES \
-	--target-cpu-utilization=$TARGET_CPU_UTILIZATION \
+	--min-num-replicas="$MIN_INSTANCES" \
+	--max-num-replicas="$MAX_INSTANCES" \
+	--target-cpu-utilization="$TARGET_CPU_UTILIZATION" \
 	--cool-down-period=60
 echo_in_green "Autoscaler set up."
 
@@ -99,24 +99,29 @@ gcloud compute backend-services create "$BACKEND_SERVICE_NAME" \
 	--global
 
 # Add the Instance Group to Backend Service
+echo_in_green "Adding instance group to backend service..."
 gcloud compute backend-services add-backend "$BACKEND_SERVICE_NAME" \
 	--instance-group="$INSTANCE_GROUP_NAME" \
 	--instance-group-zone="$ZONE" \
 	--global
 
 # Create a URL Map
+echo_in_green "Creating URL Map..."
 gcloud compute url-maps create "$URL_MAP_NAME" --default-service="$BACKEND_SERVICE_NAME"
 
 # Create an HTTP Proxy
+echo_in_green "Creating HTTP Proxy..."
 gcloud compute target-http-proxies create "$HTTP_PROXY_NAME" --url-map="$URL_MAP_NAME"
 
 # Create a Global Forwarding Rule
+echo_in_green "Creating Global Forwarding Rule..."
 gcloud compute forwarding-rules create "$FORWARDING_RULE_NAME" \
 	--global \
 	--target-http-proxy="$HTTP_PROXY_NAME" \
 	--ports=80
 
 # Create a Firewall Rule to allow HTTP
+echo_in_green "Creating Firewall Rule to Allow HTTP..."
 gcloud compute firewall-rules create "$FIREWALL_RULE_NAME" \
 	--allow tcp:80 \
 	--source-ranges 0.0.0.0/0 \
