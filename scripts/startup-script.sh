@@ -1,20 +1,21 @@
 #!/bin/bash
+set -x
 
-# Zorg ervoor dat de SSH-map bestaat
-mkdir -p $HOME/.ssh
-chmod 700 $HOME/.ssh
+# Ensure .ssh directory exists
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
 
-#  Haal de private SSH-sleutel op uit Google Secret Manager
-gcloud secrets versions access latest --secret=gitlab-ssh-key >$HOME/.ssh/gitlab_key
-chmod 600 $HOME/gitlab_key/gitlab_key
+# Retrieve the private SSH key from Google Secret Manager
+gcloud secrets versions access latest --secret=gitlab_deploy_key | tr -d '\r\n' | base64 --decode >/root/.ssh/gitlab_key
+chmod 600 ~/.ssh/gitlab_key
 
-# Configureer SSH om GitLab te gebruiken
-cat <<EOF >$HOME/gitlab_key/config
+# Configure SSH to use GitLab
+cat <<EOF >~/.ssh/config
 Host gitlab.com
-  IdentityFile $HOME/gitlab_key/gitlab_key
-  StrictHostKeyChecking no
+    IdentityFile ~/.ssh/gitlab_key
+    StrictHostKeyChecking no
 EOF
-chmod 600 $HOME/gitlab_key/config
+chmod 600 ~/.ssh/config
 
 #  Test SSH-verbinding met GitLab
 ssh -T git@gitlab.com || echo "SSH connection failed"
@@ -33,10 +34,11 @@ apt-get update
 apt-get install -y dotnet-sdk-8.0 # Vervang door de juiste versie van .NET die je nodig hebt
 
 # Clone de repository
-export GIT_SSH_COMMAND="ssh -i $HOME/gitlab_key -o StrictHostKeyChecking=no"
-chmod 600 $HOME/gitlab_key
-git clone git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git /var/www/myapp || echo "Git clone failed"
-cd /var/www/myapp
+git clone git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git ./myapp || {
+  echo "Git clone failed"
+  exit 1
+}
+cd ./myapp
 
 # Controleer of .NET is geïnstalleerd
 dotnet --version || {
@@ -45,7 +47,7 @@ dotnet --version || {
 }
 
 # Optioneel: Bouw de .NET applicatie
-if ! dotnet publish -c Release -o /var/www/myapp/out; then
+if ! dotnet publish -c Release -o ./myapp/out; then
   echo "Dotnet build failed. Please check the logs for errors."
   exit 1
 fi
@@ -80,5 +82,5 @@ nginx -t || {
 systemctl restart nginx
 
 #  (Optioneel) Start de .NET applicatie
-cd /var/www/myapp/out
-nohup dotnet myapp.dll &
+cd ./myapp/out
+nohup dotnet myapp.dll >/var/log/myapp.log 2>&1 &

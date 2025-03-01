@@ -132,9 +132,9 @@ echo_in_green "Load Balancer created."
 INSTANCE_NAME=$(gcloud compute instance-groups managed list-instances "$INSTANCE_GROUP_NAME" --zone="$ZONE" --format="value(name)" | head -n 1)
 
 # Kopieer de bestanden naar de VM
-gcloud compute scp --recurse ./publish/* "$INSTANCE_NAME:$APP_DIR" --zone $ZONE
+# gcloud compute scp --recurse ./publish/* "$INSTANCE_NAME:$APP_DIR" --zone $ZONE
 
 # SSH naar de VM en start de applicatie
-gcloud compute ssh "$INSTANCE_NAME" --zone="$ZONE" --command "bash $APP_DIR/startup-script.sh"
+# gcloud compute ssh "$INSTANCE_NAME" --zone="$ZONE" --command "bash $APP_DIR/startup-script.sh"
 
 echo_in_green "Deployment complete. Access your app via the load balancer. IP: $(gcloud compute forwarding-rules list --global --format='value(IPAddress)')"
