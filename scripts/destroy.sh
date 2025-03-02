@@ -3,35 +3,40 @@
 # Load config variables
 source config.sh
 
-echo "WARNING: This will delete the VM instance '$INSTANCE_NAME'!"
-read -p "Are you sure you want to proceed? (yes/no): " CONFIRM
-
-if [[ "$CONFIRM" != "yes" ]]; then 
-	echo "Aborted"
-	exit 0
-fi
-
-# Check if the instance exists
+# Delete the VM instance if it exists
 INSTANCE_STATUS=$(gcloud compute instances list --filter="name=$INSTANCE_NAME" --format="value(name)")
 
-if [[ -z "$INSTANCE_STATUS" ]]; then 
-	echo "Instance '$INSTANCE_NAME' not found. Skipping deletion."
-else 
+if [[ -n "$INSTANCE_STATUS" ]]; then
 	echo "Deleting VM instance '$INSTANCE_NAME'..."
 	gcloud compute instances delete $INSTANCE_NAME --zone=$ZONE --quiet
-	echo "VM instance deleted"
-fi
-
-# Check if the firewall rule exists before deleting
-FIREWALL_RULE="allow_http"
-FIREWALL_EXISTS=$(gcloud compute firewall-rules list --format="value(name)" | grep -w "$FIREWALL_RULE")
-
-if [[ -n "$FIREWALL_EXISTS" ]]; then
-	echo "Deleting firewall rule '$FIREWALL_RULE'..."
-	gcloud compute firewall-rules delete $FIREWALL_RULE --quiet
-	echo "Firewall rule deleted."
+	echo "VM instance deleted."
 else
-	echo "Firewall rule '$FIREWALL_RULE' not found. Skipping deletion."
+	echo "Instance '$INSTANCE_NAME' not found. Skipping VM deletion."
 fi
 
-echo "Cleanup finnished"
+# Delete the Cloud SQL instance if it exists
+SQL_INSTANCE_STATUS=$(gcloud sql instances list --filter="name=$DB_INSTANCE_NAME" --format="value(name)")
+
+if [[ -n "$SQL_INSTANCE_STATUS" ]]; then
+	echo "Deleting Cloud SQL instance '$DB_INSTANCE_NAME'..."
+	gcloud sql instances delete $DB_INSTANCE_NAME --quiet
+	echo "Cloud SQL instance deleted."
+else
+	echo "Cloud SQL instance '$DB_INSTANCE_NAME' not found. Skipping deletion."
+fi
+
+# Delete firewall rules if they exist
+FIREWALL_RULES=("allow-http" "allow-postgres")
+
+for RULE in "${FIREWALL_RULES[@]}"; do
+	FIREWALL_EXISTS=$(gcloud compute firewall-rules list --format="value(name)" | grep -w "$RULE")
+	if [[ -n "$FIREWALL_EXISTS" ]]; then
+		echo "Deleting firewall rule '$RULE'..."
+		gcloud compute firewall-rules delete $RULE --quiet
+		echo "Firewall rule '$RULE' deleted."
+	else
+		echo "Firewall rule '$RULE' not found. Skipping deletion."
+	fi
+done
+
+echo "Cleanup finished. All resources deleted."

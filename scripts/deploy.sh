@@ -3,72 +3,96 @@
 # Set variables
 source config.sh
 
-# Function to check if a given command exists
-command_exists() {
-	command -v "$1" >/dev/null 2>&1
-}
-
-# Set the project and zone before checkign them
-gcloud config set project $PROJECT_ID
-gcloud config set compute/zone $ZONE
-
-# Check if gcloud cli is installed
-if ! command_exists gcloud; then
-	echo "Error: gcloud CLI is not installed. Please look at the prerequisites for this script."
-i	exit 1
+# Check gcloud CLI and authentication
+if ! command -v gcloud &>/dev/null; then
+    echo "Error: gcloud CLI is not installed."
+    exit 1
 fi
 
-# Check if user is authenticated
 if ! gcloud auth list --format="value(account)" | grep -q "@"; then
     echo "Error: You are not authenticated. Run: gcloud auth login"
     exit 1
 fi
 
-# Check if project is set
+# Set the project and zone before checkign them
+gcloud config set project $PROJECT_ID
+gcloud config set compute/zone $ZONE
+
+# Check project and zone settings
 if [ -z "$(gcloud config get-value project 2>/dev/null)" ]; then
     echo "Error: No GCP project is set. Run: gcloud config set project [PROJECT_ID]"
     exit 1
 fi
 
-# Check if compute zone is set
 if [ -z "$(gcloud config get-value compute/zone 2>/dev/null)" ]; then
     echo "Error: No compute zone is set. Run: gcloud config set compute/zone [ZONE]"
     exit 1
 fi
 
-# Check if startup script exists
-if [ ! -f "$STARTUP_SCRIPT" ]; then
-    echo "Warning: $STARTUP_SCRIPT not found. The VM will not use a startup script."
-    STARTUP_METADATA=""
+# VM Creation (Idempotent)
+if gcloud compute instances describe "$INSTANCE_NAME" --zone="$ZONE" >/dev/null 2>&1; then
+    echo "VM instance '$INSTANCE_NAME' already exists."
 else
-    STARTUP_METADATA="--metadata=startup-script=$(cat $STARTUP_SCRIPT)"
+    echo "Creating VM instance..."
+    gcloud compute instances create "$INSTANCE_NAME" \
+        --zone="$ZONE" \
+        --machine-type="$MACHINE_TYPE" \
+        --image-family="$IMAGE_FAMILY" \
+        --image-project="$IMAGE_PROJECT" \
+        --metadata=startup-script="$(cat "$STARTUP_SCRIPT")",instance-connection-name="$PROJECT_ID:$DB_REGION:$DB_INSTANCE_NAME",db-password="$DB_PASSWORD",db-user="$DB_USER" \
+        --tags=http-server,postgres-server \
+        --scopes=cloud-platform
 fi
 
-# Set the project
-gcloud config set project $PROJECT_ID
+# Get the external IP of the VM (Idempotent)
+# Note: This assumes that the VM has a network interface and that the network interface has an IP assigned.
+INTERNAL_IP=$(gcloud compute instances describe "$INSTANCE_NAME" --zone="$ZONE" --format='value(networkInterfaces[0].networkIP)')
 
-# Create the VM
-echo "Creating VM instance..."
-gcloud compute instances create $INSTANCE_NAME \
-    --zone=$ZONE \
-    --machine-type=$MACHINE_TYPE \
-    --image-family=$IMAGE_FAMILY \
-    --image-project=$IMAGE_PROJECT \
-    $STARTUP_METADATA \
-    --tags=http-server \
-    --scopes=cloud-platform
+# Cloud SQL Instance Creation (Idempotent)
+if gcloud sql instances describe "$DB_INSTANCE_NAME" >/dev/null 2>&1; then
+    echo "Cloud SQL instance '$DB_INSTANCE_NAME' already exists."
+else
+    echo "Creating Cloud SQL instance..."
+    gcloud sql instances create "$DB_INSTANCE_NAME" \
+        --project="$PROJECT_ID" \
+        --database-version="$SQL_VERSION" \
+        --tier="$SQL_TIER" \
+        --region="$DB_REGION" \
+        --root-password="$DB_PASSWORD" \
+        --network="default" \
+        --private-ip \
+        --authorized-networks="$INTERNAL_IP/32"
+fi
 
-# Configure firewall to allow http traffic
-gcloud compute firewall-rules create allow-http \
-    --allow tcp:80 \
-    --source-ranges 0.0.0.0/0 \
-    --target-tags http-server \
-    --description "Allow HTTP traffic" \
-    --quiet
+# Cloud SQL Database Creation (Idempotent)
+if gcloud sql databases describe "mydatabase" --instance="$DB_INSTANCE_NAME" >/dev/null 2>&1; then
+    echo "Database 'mydatabase' already exists."
+else
+    echo "Creating Database instance..."
+    gcloud sql databases create "mydatabase" --instance="$DB_INSTANCE_NAME"
+fi
 
-# Get the external IP
-echo "Fetching external IP address..."
-EXTERNAL_IP=$(gcloud compute instances describe $INSTANCE_NAME --zone=$ZONE --format='get(networkInterfaces[0].accesConfigs[0].natIP)')
+# Firewall Rules (Idempotent)
+if gcloud compute firewall-rules describe "allow-http" >/dev/null 2>&1; then
+    echo "Firewall rule 'allow-http' already exists."
+else
+    echo "Creating firewall rule 'allow-http'..."
+    gcloud compute firewall-rules create "allow-http" \
+        --allow tcp:80 \
+        --source-ranges 0.0.0.0/0 \
+        --target-tags http-server \
+        --description "Allow HTTP traffic"
+fi
 
-echo "Deployment complete. Access your VM at http://$EXTERNAL_IP"
+if gcloud compute firewall-rules describe "allow-postgres" >/dev/null 2>&1; then
+    echo "Firewall rule 'allow-postgres' already exists."
+else
+    echo "Creating firewall rule 'allow-postgres'..."
+    gcloud compute firewall-rules create "allow-postgres" \
+        --allow tcp:5432 \
+        --source-ranges 0.0.0.0/0 \
+        --target-tags postgres-server \
+        --description "Allow PostgreSQL traffic"
+fi
 
+echo "Deployment complete. Access your VM at http://$INTERNAL_IP"
