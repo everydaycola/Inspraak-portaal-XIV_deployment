@@ -83,17 +83,20 @@ server {
     location / {
         proxy_pass http://localhost:5000;  # Zorg ervoor dat de .NET-app op deze poort draait
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
     }
 }
 EOF
 
 #  Maak een symlink naar sites-enabled
 ln -s /etc/nginx/sites-available/myapp /etc/nginx/sites-enabled/
+# Verwijder de symlink naar de default site
+sudo rm /etc/nginx/sites-enabled/default
 
+sleep 2
 # Test Nginx configuratie
 nginx -t || {
   echo "Nginx configuration failed"
@@ -105,4 +108,4 @@ systemctl restart nginx
 
 #  (Optioneel) Start de .NET applicatie
 cd ./myapp/out
-nohup dotnet myapp.dll >/var/log/myapp.log 2>&1 &
+nohup dotnet UI-MVC.dll >/var/log/myapp.log 2>&1 &

@@ -122,7 +122,7 @@ gcloud compute forwarding-rules create "$FORWARDING_RULE_NAME" \
 # Create a Firewall Rule to allow HTTP
 echo_in_green "Creating Firewall Rule to Allow HTTP..."
 gcloud compute firewall-rules create "$FIREWALL_RULE_NAME" \
-	--allow tcp:80 \
+	--allow tcp:80,tcp:5000 \
 	--source-ranges 0.0.0.0/0 \
 	--target-tags http-server \
 	--description "Allow HTTP traffic"
