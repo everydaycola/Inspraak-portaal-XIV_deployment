@@ -77,7 +77,8 @@ gcloud compute instance-groups managed set-autoscaling "$INSTANCE_GROUP_NAME" \
 	--min-num-replicas="$MIN_INSTANCES" \
 	--max-num-replicas="$MAX_INSTANCES" \
 	--target-cpu-utilization="$TARGET_CPU_UTILIZATION" \
-	--cool-down-period=60
+	--cool-down-period=60 \
+	--initialization-period=300
 echo_in_green "Autoscaler set up."
 
 echo_in_green "Creating Health Check..."
@@ -127,14 +128,5 @@ gcloud compute firewall-rules create "$FIREWALL_RULE_NAME" \
 	--target-tags http-server \
 	--description "Allow HTTP traffic"
 echo_in_green "Load Balancer created."
-
-# Verkrijg de naam van de eerste instantie in de Instance Group
-INSTANCE_NAME=$(gcloud compute instance-groups managed list-instances "$INSTANCE_GROUP_NAME" --zone="$ZONE" --format="value(name)" | head -n 1)
-
-# Kopieer de bestanden naar de VM
-# gcloud compute scp --recurse ./publish/* "$INSTANCE_NAME:$APP_DIR" --zone $ZONE
-
-# SSH naar de VM en start de applicatie
-# gcloud compute ssh "$INSTANCE_NAME" --zone="$ZONE" --command "bash $APP_DIR/startup-script.sh"
 
 echo_in_green "Deployment complete. Access your app via the load balancer. IP: $(gcloud compute forwarding-rules list --global --format='value(IPAddress)')"
