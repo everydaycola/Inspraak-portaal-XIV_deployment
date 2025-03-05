@@ -1,42 +1,61 @@
 #!/bin/bash
 
-# Load config variables
+# Set variables
 source config.sh
 
-# Delete the VM instance if it exists
-INSTANCE_STATUS=$(gcloud compute instances list --filter="name=$INSTANCE_NAME" --format="value(name)")
-
-if [[ -n "$INSTANCE_STATUS" ]]; then
-	echo "Deleting VM instance '$INSTANCE_NAME'..."
-	gcloud compute instances delete $INSTANCE_NAME --zone=$ZONE --quiet
-	echo "VM instance deleted."
+# Cloud SQL Database Deletion
+if gcloud sql databases describe "mydatabase" --instance="$DB_INSTANCE_NAME" >/dev/null 2>&1; then
+	echo "Deleting database 'mydatabase'..."
+	gcloud sql databases delete "mydatabase" --instance="$DB_INSTANCE_NAME" --quiet
 else
-	echo "Instance '$INSTANCE_NAME' not found. Skipping VM deletion."
+	echo "Database 'mydatabase' does not exist."
 fi
 
-# Delete the Cloud SQL instance if it exists
-SQL_INSTANCE_STATUS=$(gcloud sql instances list --filter="name=$DB_INSTANCE_NAME" --format="value(name)")
-
-if [[ -n "$SQL_INSTANCE_STATUS" ]]; then
+# Cloud SQL Instance Deletion
+if gcloud sql instances describe "$DB_INSTANCE_NAME" >/dev/null 2>&1; then
 	echo "Deleting Cloud SQL instance '$DB_INSTANCE_NAME'..."
-	gcloud sql instances delete $DB_INSTANCE_NAME --quiet
-	echo "Cloud SQL instance deleted."
+	gcloud sql instances delete "$DB_INSTANCE_NAME" --quiet
 else
-	echo "Cloud SQL instance '$DB_INSTANCE_NAME' not found. Skipping deletion."
+	echo "Cloud SQL instance '$DB_INSTANCE_NAME' does not exist."
 fi
 
-# Delete firewall rules if they exist
-FIREWALL_RULES=("allow-http" "allow-postgres")
+# VM Instance Deletion
+if gcloud compute instances describe "$INSTANCE_NAME" --zone="$ZONE" >/dev/null 2>&1; then
+	echo "Deleting VM instance '$INSTANCE_NAME'..."
+	gcloud compute instances delete "$INSTANCE_NAME" --zone="$ZONE" --quiet
+else
+	echo "VM instance '$INSTANCE_NAME' does not exist."
+fi
 
-for RULE in "${FIREWALL_RULES[@]}"; do
-	FIREWALL_EXISTS=$(gcloud compute firewall-rules list --format="value(name)" | grep -w "$RULE")
-	if [[ -n "$FIREWALL_EXISTS" ]]; then
-		echo "Deleting firewall rule '$RULE'..."
-		gcloud compute firewall-rules delete $RULE --quiet
-		echo "Firewall rule '$RULE' deleted."
-	else
-		echo "Firewall rule '$RULE' not found. Skipping deletion."
-	fi
-done
+# Firewall Rule Deletion
+if gcloud compute firewall-rules describe "allow-http" >/dev/null 2>&1; then
+	echo "Deleting firewall rule 'allow-http'..."
+	gcloud compute firewall-rules delete "allow-http" --quiet
+else
+	echo "Firewall rule 'allow-http' does not exist."
+fi
 
-echo "Cleanup finished. All resources deleted."
+if gcloud compute firewall-rules describe "allow-postgres" >/dev/null 2>&1; then
+	echo "Deleting firewall rule 'allow-postgres'..."
+	gcloud compute firewall-rules delete "allow-postgres" --quiet
+else
+	echo "Firewall rule 'allow-postgres' does not exist."
+fi
+
+# Private IP Address range deletion.
+if gcloud compute addresses describe google-managed-services-range --global >/dev/null 2>&1; then
+	echo "Deleting private IP address range 'google-managed-services-range'..."
+	gcloud compute addresses delete google-managed-services-range --global --quiet
+else
+	echo "private IP address range 'google-managed-services-range' does not exist."
+fi
+
+#Private Service Access peering deletion.
+if gcloud services vpc-peerings list --network=default | grep servicenetworking.googleapis.com >/dev/null 2>&1; then
+	echo "Deleting VPC peering connection..."
+	gcloud services vpc-peerings disconnect --service=servicenetworking.googleapis.com --network=default --quiet
+else
+	echo "VPC peering connection does not exist."
+fi
+
+echo "Destruction complete."

@@ -14,7 +14,7 @@ if ! gcloud auth list --format="value(account)" | grep -q "@"; then
     exit 1
 fi
 
-# Set the project and zone before checkign them
+# Set the project and zone before checking them
 gcloud config set project $PROJECT_ID
 gcloud config set compute/zone $ZONE
 
@@ -29,7 +29,26 @@ if [ -z "$(gcloud config get-value compute/zone 2>/dev/null)" ]; then
     exit 1
 fi
 
-# VM Creation (Idempotent)
+# Create private IP address range
+if ! gcloud compute addresses describe google-managed-services-range --global >/dev/null 2>&1; then
+    echo "Creating private IP address range..."
+    gcloud compute addresses create google-managed-services-range \
+        --global \
+        --prefix-length=24 \
+        --purpose=VPC_PEERING \
+        --network=default
+fi
+
+# Create VPC peering connection
+if ! gcloud services vpc-peerings list --network=default | grep servicenetworking.googleapis.com >/dev/null 2>&1; then
+    echo "Creating VPC peering connection..."
+    gcloud services vpc-peerings connect \
+        --service=servicenetworking.googleapis.com \
+        --network=default \
+        --ranges=google-managed-services-range
+fi
+
+# VM Creation
 if gcloud compute instances describe "$INSTANCE_NAME" --zone="$ZONE" >/dev/null 2>&1; then
     echo "VM instance '$INSTANCE_NAME' already exists."
 else
@@ -44,11 +63,11 @@ else
         --scopes=cloud-platform
 fi
 
-# Get the external IP of the VM (Idempotent)
+# Get the external IP of the VM
 # Note: This assumes that the VM has a network interface and that the network interface has an IP assigned.
 INTERNAL_IP=$(gcloud compute instances describe "$INSTANCE_NAME" --zone="$ZONE" --format='value(networkInterfaces[0].networkIP)')
 
-# Cloud SQL Instance Creation (Idempotent)
+# Cloud SQL Instance Creation
 if gcloud sql instances describe "$DB_INSTANCE_NAME" >/dev/null 2>&1; then
     echo "Cloud SQL instance '$DB_INSTANCE_NAME' already exists."
 else
@@ -59,12 +78,10 @@ else
         --tier="$SQL_TIER" \
         --region="$DB_REGION" \
         --root-password="$DB_PASSWORD" \
-        --network="default" \
-        --private-ip \
-        --authorized-networks="$INTERNAL_IP/32"
+        --network="default"
 fi
 
-# Cloud SQL Database Creation (Idempotent)
+# Cloud SQL Database Creation
 if gcloud sql databases describe "mydatabase" --instance="$DB_INSTANCE_NAME" >/dev/null 2>&1; then
     echo "Database 'mydatabase' already exists."
 else
@@ -72,7 +89,7 @@ else
     gcloud sql databases create "mydatabase" --instance="$DB_INSTANCE_NAME"
 fi
 
-# Firewall Rules (Idempotent)
+# Firewall Rules
 if gcloud compute firewall-rules describe "allow-http" >/dev/null 2>&1; then
     echo "Firewall rule 'allow-http' already exists."
 else
