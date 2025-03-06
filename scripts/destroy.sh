@@ -4,18 +4,6 @@
 source config.sh
 source colors.sh
 
-echo_in_orange() {
-        echo -e "${ORANGE}$1${ENDCOLOR}"
-}
-
-# Cloud SQL Database Deletion
-if gcloud sql databases describe "mydatabase" --instance="$DB_INSTANCE_NAME" >/dev/null 2>&1; then
-        echo "Deleting database 'mydatabase'..."
-        gcloud sql databases delete "mydatabase" --instance="$DB_INSTANCE_NAME" --quiet
-else
-        echo "Database 'mydatabase' does not exist."
-fi
-
 # Cloud SQL Instance Deletion
 if gcloud sql instances describe "$DB_INSTANCE_NAME" >/dev/null 2>&1; then
         echo "Deleting Cloud SQL instance '$DB_INSTANCE_NAME'..."
