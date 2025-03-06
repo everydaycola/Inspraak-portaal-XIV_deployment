@@ -49,7 +49,7 @@ apt-get install -y dotnet-sdk-8.0 # Vervang door de juiste versie van .NET die j
 
 # Clone de repository
 echo "Cloning repository..."
-git clone git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git ./myapp || {
+git clone --branch test_deployment-branch git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git ./myapp || {
   echo "Git clone failed"
   exit 1
 }

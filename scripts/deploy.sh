@@ -129,4 +129,6 @@ gcloud compute firewall-rules create "$FIREWALL_RULE_NAME" \
 	--description "Allow HTTP traffic"
 echo_in_green "Load Balancer created."
 
-echo_in_green "Deployment complete. Access your app via the load balancer. IP: $(gcloud compute forwarding-rules list --global --format='value(IPAddress)')"
+echo_in_green "Deployment complete. Access your app via the load balancer. http://$(gcloud compute forwarding-rules list --global --format='value(IPAddress)')"
+echo -e "${YELLOW}Accessing the Load balancer may take up to 5 minutes.${ENDCOLOR}"
+echo -e "${YELLOW}You can also go to a specific instance via: http://$(gcloud compute instances list --filter='status=RUNNING' --limit=1 --format='value(networkInterfaces[0].accessConfigs[0].natIP)')${ENDCOLOR}"
