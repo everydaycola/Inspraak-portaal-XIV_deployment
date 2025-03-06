@@ -28,12 +28,12 @@ FORWARDING_RULE_NAME="web-forwarding-rule"
 FIREWALL_RULE_NAME="allow-http"
 
 # Startup Script
-STARTUP_SCRIPT="startup-script-script.sh"
+STARTUP_SCRIPT="startup-script.sh"
 
 # Postgres variables
 DB_INSTANCE_NAME="postgres-db"
-DB_USER="postgres"
-DB_PASSWORD="your_secure_password"
+DB_USER=$(gcloud secrets versions access latest --secret=cloud_sql_db_user)
+DB_PASSWORD=$(gcloud secrets versions access latest --secret=cloud_sql_root_password)
 DB_REGION="europe-west1"
 SQL_TIER="db-perf-optimized-N-2"
 SQL_VERSION="POSTGRES_17"

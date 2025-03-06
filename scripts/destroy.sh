@@ -6,33 +6,33 @@ source colors.sh
 
 # Cloud SQL Instance Deletion
 if gcloud sql instances describe "$DB_INSTANCE_NAME" >/dev/null 2>&1; then
-        echo "Deleting Cloud SQL instance '$DB_INSTANCE_NAME'..."
+        echo_in_orange "Deleting Cloud SQL instance '$DB_INSTANCE_NAME'..."
         gcloud sql instances delete "$DB_INSTANCE_NAME" --quiet
 else
-        echo "Cloud SQL instance '$DB_INSTANCE_NAME' does not exist."
+        echo_in_red "Cloud SQL instance '$DB_INSTANCE_NAME' does not exist."
 fi
 
 if gcloud compute firewall-rules describe "allow-postgres" >/dev/null 2>&1; then
-        echo "Deleting firewall rule 'allow-postgres'..."
+        echo_in_orange "Deleting firewall rule 'allow-postgres'..."
         gcloud compute firewall-rules delete "allow-postgres" --quiet
 else
-        echo "Firewall rule 'allow-postgres' does not exist."
+        echo_in_red "Firewall rule 'allow-postgres' does not exist."
 fi
 
 # Private IP Address range deletion.
 if gcloud compute addresses describe google-managed-services-range --global >/dev/null 2>&1; then
-        echo "Deleting private IP address range 'google-managed-services-range'..."
+        echo_in_orange "Deleting private IP address range 'google-managed-services-range'..."
         gcloud compute addresses delete google-managed-services-range --global --quiet
 else
-        echo "private IP address range 'google-managed-services-range' does not exist."
+        echo_in_red "private IP address range 'google-managed-services-range' does not exist."
 fi
 
 #Private Service Access peering deletion.
 if gcloud services vpc-peerings list --network=default | grep servicenetworking.googleapis.com >/dev/null 2>&1; then
-        echo "Deleting VPC peering connection..."
+        echo_in_orange "Deleting VPC peering connection..."
         gcloud services vpc-peerings delete --service=servicenetworking.googleapis.com --network=default --quiet
 else
-        echo "VPC peering connection does not exist."
+        echo_in_red "VPC peering connection does not exist."
 fi
 
 echo_in_orange "Deleting forwarding rule..."

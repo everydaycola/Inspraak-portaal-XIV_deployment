@@ -1,6 +1,15 @@
 #!/bin/bash
 set -x
 
+# Variables
+GIT_REPO="git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git"
+GIT_BRANCH="test_deployment-branch"
+APP_DIR="/root/myapp"
+APP_OUT_DIR="$APP_DIR/out"
+APP_LOG_FILE="/var/log/myapp/myapp.log"
+NGINX_CONFIG="/etc/nginx/sites-available/myapp"
+DOMAIN_NAME="myapp.example.com" #replace with your domain.
+
 # Ensure .ssh directory exists
 mkdir -p ~/.ssh
 chmod 700 ~/.ssh
@@ -19,45 +28,35 @@ Host gitlab.com
 EOF
 chmod 600 ~/.ssh/config
 
-#  Test SSH-verbinding met GitLab
+# Test SSH connection
 echo "Testing SSH connection..."
-ssh -T git@gitlab.com || echo "SSH connection failed"
-echo "SSH connection successful."
-
-#  Installeer Nginx
-apt-get update
-apt-get install -y nginx
-
-# Installeer Git
-apt-get install -y git
-
-echo "Checking Git installation..."
-which git || {
-  echo "Git is not installed"
+ssh -T git@gitlab.com || {
+  echo "SSH connection failed"
   exit 1
 }
-echo "Git is installed."
+echo "SSH connection successful."
 
-echo "Listing /root directory:"
-ls -la /root/
+# Install dependencies before cloning
+apt-get update && apt-get install -y nginx git postgresql-client curl
 
+# Install .NET
 wget https://packages.microsoft.com/config/ubuntu/20.04/prod.list
 mv prod.list /etc/apt/sources.list.d/microsoft-prod.list
 wget -q https://packages.microsoft.com/keys/microsoft.asc -O- | apt-key add -
 apt-get update
-apt-get install -y dotnet-sdk-8.0 # Vervang door de juiste versie van .NET die je nodig hebt
+apt-get install -y dotnet-sdk-8.0
 
-# Clone de repository
+# Clone repository
 echo "Cloning repository..."
-git clone --branch test_deployment-branch git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git ./myapp || {
+git clone --branch "$GIT_BRANCH" "$GIT_REPO" "$APP_DIR" || {
   echo "Git clone failed"
   exit 1
 }
-echo "Repository cloned successfully."
+echo "Repository cloned."
 
-cd ./myapp
+cd "$APP_DIR"
 
-# Controleer of .NET is geïnstalleerd
+# Check .NET installation
 dotnet --version || {
   echo ".NET installation failed"
   exit 1
@@ -66,17 +65,23 @@ dotnet --version || {
 echo "Setting HOME environment variable..."
 export HOME=/root
 
-sudo apt install -y postgresql-client curl
-
 # Install Cloud SQL Proxy
 curl -o cloud_sql_proxy https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64
 chmod +x cloud_sql_proxy
 sudo mv cloud_sql_proxy /usr/local/bin/
 
-# Get metadata
-INSTANCE_CONNECTION_NAME=$(gcloud compute instances describe $(hostname) --zone=$(gcloud config get-value compute/zone) --format='value(metadata.items[?key="instance-connection-name"].value)')
-DB_PASSWORD=$(gcloud compute instances describe $(hostname) --zone=$(gcloud config get-value compute/zone) --format='value(metadata.items[?key="db-password"].value)')
-DB_USER=$(gcloud compute instances describe $(hostname) --zone=$(gcloud config get-value compute/zone) --format='value(metadata.items[?key="db-user"].value)')
+# Get Cloud SQL variables from Secret Manager
+INSTANCE_CONNECTION_NAME=$(gcloud secrets versions access latest --secret=cloud_sql_instance_connection_name)
+DB_PASSWORD=$(gcloud secrets versions access latest --secret=cloud_sql_password)
+DB_USER=$(gcloud secrets versions access latest --secret=cloud_sql_user)
+
+# Check if secrets were retrieved
+if [ -z "$INSTANCE_CONNECTION_NAME" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_USER" ]; then
+  echo "ERROR: Cloud SQL secrets not found in Secret Manager. Exiting."
+  exit 1
+fi
+
+export ConnectionStrings__DefaultConnection="host=127.0.0.1;user=$DB_USER;password=$DB_PASSWORD;database=mydatabase"
 
 # Cloud SQL Proxy Systemd Service
 cat <<EOF | sudo tee /etc/systemd/system/cloud-sql-proxy.service
@@ -102,24 +107,24 @@ sudo systemctl start cloud-sql-proxy
 sleep 5
 
 # Test PostgreSQL connection
-PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U "$DB_USER" -d mydatabase -c "SELECT NOW();"
+psql -h 127.0.0.1 -U "$DB_USER" -d mydatabase -c "SELECT NOW();"
 
-# Optioneel: Bouw de .NET applicatie
+# Build .NET application
 echo "Building .NET application..."
-dotnet publish -c Release -o ./myapp/out || {
-  echo "Dotnet build failed. Please check the logs for errors."
+dotnet publish -c Release -o "$APP_OUT_DIR" || {
+  echo "Dotnet build failed"
   exit 1
 }
-echo ".NET application built successfully."
+echo "Application built."
 
-# Zet Nginx om als reverse proxy
-cat <<EOF >/etc/nginx/sites-available/myapp
+# Nginx configuration
+cat <<EOF >"$NGINX_CONFIG"
 server {
     listen 80;
-    server_name myapp.example.com;
+    server_name $DOMAIN_NAME;
 
     location / {
-        proxy_pass http://localhost:5000;  # Zorg ervoor dat de .NET-app op deze poort draait
+        proxy_pass http://localhost:5000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection upgrade;
@@ -129,21 +134,37 @@ server {
 }
 EOF
 
-#  Maak een symlink naar sites-enabled
-ln -s /etc/nginx/sites-available/myapp /etc/nginx/sites-enabled/
-# Verwijder de symlink naar de default site
+ln -s "$NGINX_CONFIG" /etc/nginx/sites-enabled/myapp
 sudo rm /etc/nginx/sites-enabled/default
 
-sleep 2
-# Test Nginx configuratie
 nginx -t || {
   echo "Nginx configuration failed"
   exit 1
 }
-
-# Start Nginx
 systemctl restart nginx
 
-#  (Optioneel) Start de .NET applicatie
-cd ./myapp/out
-nohup dotnet UI-MVC.dll >/var/log/myapp.log 2>&1 &
+# .NET application Systemd Service
+mkdir -p /var/log/myapp/
+cat <<EOF | sudo tee /etc/systemd/system/myapp.service
+[Unit]
+Description=My .NET Application
+After=network.target cloud-sql-proxy.service
+
+[Service]
+WorkingDirectory=$APP_OUT_DIR
+ExecStart=/usr/bin/dotnet UI-MVC.dll
+Restart=always
+RestartSec=10
+SyslogIdentifier=myapp
+StandardOutput=file:$APP_LOG_FILE
+StandardError=file:$APP_LOG_FILE
+Environment="ASPNETCORE_URLS=http://localhost:5000"
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable myapp
+sleep 2 #wait for cloud sql proxy to fully start.
+sudo systemctl start myapp

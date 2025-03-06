@@ -8,3 +8,16 @@ CYAN="\e[0;36m"
 WHITE="\e[0;37m"
 ORANGE="\e[38;5;214m"
 ENDCOLOR="\e[0m"
+
+echo_in_green() {
+    echo -e "${GREEN}$1${ENDCOLOR}"
+}
+echo_in_orange() {
+    echo -e "${ORANGE}$1${ENDCOLOR}"
+}
+echo_in_red() {
+    echo -e "${RED}$1${ENDCOLOR}"
+}
+echo_in_purple() {
+    echo -e "${PURPLE}$1${ENDCOLOR}"
+}
