@@ -53,7 +53,7 @@ fi
 #Private Service Access peering deletion.
 if gcloud services vpc-peerings list --network=default | grep servicenetworking.googleapis.com >/dev/null 2>&1; then
 	echo "Deleting VPC peering connection..."
-	gcloud services vpc-peerings disconnect --service=servicenetworking.googleapis.com --network=default --quiet
+	gcloud services vpc-peerings delete --service=servicenetworking.googleapis.com --network=default --quiet
 else
 	echo "VPC peering connection does not exist."
 fi
