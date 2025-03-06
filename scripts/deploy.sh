@@ -2,108 +2,122 @@
 
 # Load Configuration Variables
 source config.sh
-
-# Load colors
 source colors.sh
-
-# Function to echo in green just for more clarity
-
-echo_in_green() {
-	echo -e "${GREEN}$1${ENDCOLOR}"
+# Function to check if a given command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
 }
 
-echo_in_green "Setting gcloud properties..."
-# Set some gcloud properties
+# Set the project and zone before checkign them
 gcloud config set project $PROJECT_ID
 gcloud config set compute/zone $ZONE
-echo_in_green "Properties set."
 
-echo_in_green "Starting some checks..."
-# Function to check if a given command exists - used to check mostly if gcloud exists
-command_exists() {
-	command -v "$1" >/dev/null 2>&1
-}
-
-# Check prerequisites
+# Check if gcloud cli is installed
 if ! command_exists gcloud; then
-	echo "Error: gcloud CLI is not installed"
-	exit 1
+    echo "Error: gcloud CLI is not installed. Please look at the prerequisites for this script."
+    i exit 1
 fi
 
 if ! gcloud auth list --format="value(account)" | grep -q "@"; then
-	echo "Error: You are not authenticated. Run: gcloud auth login"
-	exit 1
+    echo "Error: You are not authenticated. Run: gcloud auth login"
+    exit 1
 fi
 
 # Check if "project" has a value
 if [ -z "$(gcloud config get-value project 2>/dev/null)" ]; then
-	echo "Error: No GCP project is set. Run gcloud config set project [PROJECT_ID]"
-	exit 1
+    echo "Error: No GCP project is set. Run gcloud config set project [PROJECT_ID]"
+    exit 1
 fi
 
 # Check if "compute/zone" has a value
 if [ -z "$(gcloud config get-value compute/zone 2>/dev/null)" ]; then
-	echo "Error: No compute zone is set. Run: gcloud config set compute/zone [ZONE]"
-	exit 1
+    echo "Error: No compute zone is set. Run: gcloud config set compute/zone [ZONE]"
+    exit 1
 fi
 
+# Check if startup script exists
+if [ ! -f "$STARTUP_SCRIPT" ]; then
+    echo "Warning: $STARTUP_SCRIPT not found. The VM will not use a startup script."
+    STARTUP_METADATA=""
+else
+    STARTUP_METADATA="--metadata=startup-script=$(cat $STARTUP_SCRIPT)"
+fi
 echo_in_green "Checks finnished with no problems."
+
+# Create private IP address range
+if ! gcloud compute addresses describe google-managed-services-range --global >/dev/null 2>&1; then
+    echo "Creating private IP address range..."
+    gcloud compute addresses create google-managed-services-range \
+        --global \
+        --prefix-length=24 \
+        --purpose=VPC_PEERING \
+        --network=default
+fi
+
+# Create VPC peering connection
+if ! gcloud services vpc-peerings list --network=default | grep servicenetworking.googleapis.com >/dev/null 2>&1; then
+    echo "Creating VPC peering connection..."
+    gcloud services vpc-peerings connect \
+        --service=servicenetworking.googleapis.com \
+        --network=default \
+        --ranges=google-managed-services-range
+fi
 
 echo_in_green "Creating instance template..."
 # Create an Instance Template
 gcloud compute instance-templates create "$INSTANCE_TEMPLATE_NAME" \
-	--machine-type="$MACHINE_TYPE" \
-	--region="$REGION" \
-	--image-family="$IMAGE_FAMILY" \
-	--image-project="$IMAGE_PROJECT" \
-	--metadata=startup-script="$(cat $STARTUP_SCRIPT)" \
-	--tags=http-server,https-server \
-	--scopes=cloud-platform
+    --machine-type="$MACHINE_TYPE" \
+    --region="$REGION" \
+    --image-family="$IMAGE_FAMILY" \
+    --image-project="$IMAGE_PROJECT" \
+    --metadata=startup-script="$(cat $STARTUP_SCRIPT)" \
+    --tags=http-server,https-server \
+    --scopes=cloud-platform
 echo_in_green "Template created."
 
 echo_in_green "Creating MIG..."
 # Create a Managed Instance Group (MIG)
 gcloud compute instance-groups managed create "$INSTANCE_GROUP_NAME" \
-	--base-instance-name=web-instance \
-	--size=$MIN_INSTANCES \
-	--template="$INSTANCE_TEMPLATE_NAME" \
-	--zone="$ZONE"
+    --base-instance-name=web-instance \
+    --size=$MIN_INSTANCES \
+    --template="$INSTANCE_TEMPLATE_NAME" \
+    --zone="$ZONE"
 echo_in_green "MIG Created."
 
 echo_in_green "Setting up autoscaler..."
 # Set up Autoscaler
 gcloud compute instance-groups managed set-autoscaling "$INSTANCE_GROUP_NAME" \
-	--zone="$ZONE" \
-	--min-num-replicas="$MIN_INSTANCES" \
-	--max-num-replicas="$MAX_INSTANCES" \
-	--target-cpu-utilization="$TARGET_CPU_UTILIZATION" \
-	--cool-down-period=60 \
-	--initialization-period=300
+    --zone="$ZONE" \
+    --min-num-replicas="$MIN_INSTANCES" \
+    --max-num-replicas="$MAX_INSTANCES" \
+    --target-cpu-utilization="$TARGET_CPU_UTILIZATION" \
+    --cool-down-period=60 \
+    --initialization-period=300
 echo_in_green "Autoscaler set up."
 
 echo_in_green "Creating Health Check..."
 # Create a Health Check
 gcloud compute health-checks create http "$HEALTH_CHECK_NAME" \
-	--check-interval=30s \
-	--timeout=5s \
-	--unhealthy-threshold=3 \
-	--healthy-threshold=2 \
-	--port=80
+    --check-interval=30s \
+    --timeout=5s \
+    --unhealthy-threshold=3 \
+    --healthy-threshold=2 \
+    --port=80
 echo_in_green "Health check created."
 
 echo_in_green "Creating Load Balancer..."
 # Create a Backend Service
 gcloud compute backend-services create "$BACKEND_SERVICE_NAME" \
-	--protocol=HTTP \
-	--health-checks="$HEALTH_CHECK_NAME" \
-	--global
+    --protocol=HTTP \
+    --health-checks="$HEALTH_CHECK_NAME" \
+    --global
 
 # Add the Instance Group to Backend Service
 echo_in_green "Adding instance group to backend service..."
 gcloud compute backend-services add-backend "$BACKEND_SERVICE_NAME" \
-	--instance-group="$INSTANCE_GROUP_NAME" \
-	--instance-group-zone="$ZONE" \
-	--global
+    --instance-group="$INSTANCE_GROUP_NAME" \
+    --instance-group-zone="$ZONE" \
+    --global
 
 # Create a URL Map
 echo_in_green "Creating URL Map..."
@@ -116,17 +130,39 @@ gcloud compute target-http-proxies create "$HTTP_PROXY_NAME" --url-map="$URL_MAP
 # Create a Global Forwarding Rule
 echo_in_green "Creating Global Forwarding Rule..."
 gcloud compute forwarding-rules create "$FORWARDING_RULE_NAME" \
-	--global \
-	--target-http-proxy="$HTTP_PROXY_NAME" \
-	--ports=80
+    --global \
+    --target-http-proxy="$HTTP_PROXY_NAME" \
+    --ports=80
+
+# Cloud SQL Instance Creation
+if gcloud sql instances describe "$DB_INSTANCE_NAME" >/dev/null 2>&1; then
+    echo "Cloud SQL instance '$DB_INSTANCE_NAME' already exists."
+else
+    echo "Creating Cloud SQL instance..."
+    gcloud sql instances create "$DB_INSTANCE_NAME" \
+        --project="$PROJECT_ID" \
+        --database-version="$SQL_VERSION" \
+        --tier="$SQL_TIER" \
+        --region="$DB_REGION" \
+        --root-password="$DB_PASSWORD" \
+        --network="default"
+fi
+
+# Cloud SQL Database Creation
+if gcloud sql databases describe "mydatabase" --instance="$DB_INSTANCE_NAME" >/dev/null 2>&1; then
+    echo "Database 'mydatabase' already exists."
+else
+    echo "Creating Database instance..."
+    gcloud sql databases create "mydatabase" --instance="$DB_INSTANCE_NAME"
+fi
 
 # Create a Firewall Rule to allow HTTP
 echo_in_green "Creating Firewall Rule to Allow HTTP..."
 gcloud compute firewall-rules create "$FIREWALL_RULE_NAME" \
-	--allow tcp:80,tcp:5000 \
-	--source-ranges 0.0.0.0/0 \
-	--target-tags http-server \
-	--description "Allow HTTP traffic"
+    --allow tcp:80,tcp:5000 \
+    --source-ranges 0.0.0.0/0 \
+    --target-tags http-server \
+    --description "Allow HTTP traffic"
 echo_in_green "Load Balancer created."
 
 echo_in_green "Deployment complete. Access your app via the load balancer. http://$(gcloud compute forwarding-rules list --global --format='value(IPAddress)')"
