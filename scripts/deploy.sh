@@ -133,6 +133,10 @@ gcloud compute forwarding-rules create "$FORWARDING_RULE_NAME" \
     --target-http-proxy="$HTTP_PROXY_NAME" \
     --ports=80
 
+# Collecting Credentials from the secret manager
+DB_PASSWORD=$(gcloud secrets versions access latest --secret=cloud_sql_password)
+DB_USER=$(gcloud secrets versions access latest --secret=cloud_sql_user)
+
 # Cloud SQL Instance Creation
 if gcloud sql instances describe "$DB_INSTANCE_NAME" >/dev/null 2>&1; then
     echo_in_orange "Cloud SQL instance '$DB_INSTANCE_NAME' already exists."

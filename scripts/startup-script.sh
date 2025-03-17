@@ -3,7 +3,7 @@ set -x
 
 # Variables
 GIT_REPO="git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git"
-GIT_BRANCH="test_deployment-branch"
+GIT_BRANCH="main"
 APP_DIR="/root/myapp"
 APP_OUT_DIR="$APP_DIR/out"
 APP_LOG_FILE="/var/log/myapp/myapp.log"
@@ -38,6 +38,8 @@ echo "SSH connection successful."
 
 # Install dependencies before cloning
 apt-get update && apt-get install -y nginx git postgresql-client curl
+curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+apt-get install -y nodejs
 
 # Install .NET
 wget https://packages.microsoft.com/config/ubuntu/20.04/prod.list
@@ -65,15 +67,42 @@ dotnet --version || {
 echo "Setting HOME environment variable..."
 export HOME=/root
 
-# Install Cloud SQL Proxy
-curl -o cloud_sql_proxy https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64
-chmod +x cloud_sql_proxy
-sudo mv cloud_sql_proxy /usr/local/bin/
+# Ensure necessary EF Core packages are installed
+cd "$APP_DIR"
+dotnet add package Microsoft.EntityFrameworkCore.Design
+dotnet add package Microsoft.EntityFrameworkCore.Tools
+
+# Ensure we're in the /root directory
+cd /root
+
+# Download Cloud SQL Proxy
+curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.11.0/cloud-sql-proxy.linux.amd64
+if [ $? -ne 0 ]; then
+  echo "ERROR: Failed to download Cloud SQL Proxy."
+  exit 1
+fi
+
+chmod +x /root/cloud-sql-proxy
+sudo mv /root/cloud-sql-proxy /usr/local/bin/
+chmod +x /usr/local/bin/cloud-sql-proxy
+
+# Verify the executable exists
+if [ ! -f /usr/local/bin/cloud-sql-proxy ]; then
+  echo "ERROR: Cloud SQL Proxy executable not found in /usr/local/bin/."
+  exit 1
+fi
 
 # Get Cloud SQL variables from Secret Manager
 INSTANCE_CONNECTION_NAME=$(gcloud secrets versions access latest --secret=cloud_sql_instance_connection_name)
 DB_PASSWORD=$(gcloud secrets versions access latest --secret=cloud_sql_password)
-DB_USER=$(gcloud secrets versions access latest --secret=cloud_sql_user)
+#DB_USER=$(gcloud secrets versions access latest --secret=cloud_sql_user)
+DB_USER="postgres"
+
+export PGPASSWORD="$DB_PASSWORD"
+
+echo "INSTANCE_CONNECTION_NAME: $INSTANCE_CONNECTION_NAME"
+echo "DB_USER: $DB_USER"
+echo "DB_PASSWORD: $DB_PASSWORD"
 
 # Check if secrets were retrieved
 if [ -z "$INSTANCE_CONNECTION_NAME" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_USER" ]; then
@@ -81,7 +110,8 @@ if [ -z "$INSTANCE_CONNECTION_NAME" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_USER
   exit 1
 fi
 
-export ConnectionStrings__DefaultConnection="host=127.0.0.1;user=$DB_USER;password=$DB_PASSWORD;database=mydatabase"
+export ConnectionStrings__DefaultConnection="host=127.0.0.1;Username=$DB_USER;password=$DB_PASSWORD;database=mydatabase"
+echo $ConnectionStrings__DefaultConnection
 
 # Cloud SQL Proxy Systemd Service
 cat <<EOF | sudo tee /etc/systemd/system/cloud-sql-proxy.service
@@ -91,7 +121,7 @@ After=network.target
 
 [Service]
 User=root
-ExecStart=/usr/local/bin/cloud_sql_proxy -instances=$INSTANCE_CONNECTION_NAME=tcp:5432
+ExecStart=/usr/local/bin/cloud-sql-proxy $INSTANCE_CONNECTION_NAME
 Restart=always
 RestartSec=10
 
@@ -103,11 +133,53 @@ sudo systemctl daemon-reload
 sudo systemctl enable cloud-sql-proxy
 sudo systemctl start cloud-sql-proxy
 
-# Wait for proxy
-sleep 5
+echo "Waiting for Cloud SQL Proxy to be ready..."
+retries=0
+max_retries=200           # Increase retries
+service_check_interval=10 # Check service status every 10 retries
+
+while ! psql -h 127.0.0.1 -U "$DB_USER" -d mydatabase -c "SELECT 1;" >/dev/null 2>&1; do
+  if [ $retries -ge $max_retries ]; then
+    echo "ERROR: Cloud SQL Proxy failed to connect after $max_retries retries."
+    exit 1
+  fi
+
+  # Check Cloud SQL Proxy service every 10 retries
+  if ((retries % service_check_interval == 0)); then
+    systemctl is-active --quiet cloud-sql-proxy || echo "Warning: Cloud SQL Proxy service is not running."
+  fi
+
+  sleep 5
+  retries=$((retries + 1))
+done
+
+echo "Cloud SQL Proxy is ready."
 
 # Test PostgreSQL connection
 psql -h 127.0.0.1 -U "$DB_USER" -d mydatabase -c "SELECT NOW();"
+
+cd "$APP_DIR"
+
+# Install .NET EF tools (if not already installed)
+echo "Installing .NET EF tools..."
+dotnet tool install --global dotnet-ef || echo "dotnet-ef already installed."
+
+# Restore dependencies
+echo "Restoring dependencies..."
+dotnet restore
+
+# Run migrations
+echo "Checking for existing migrations..."
+if [ ! -d "$APP_DIR/Migrations" ]; then
+  echo "No migrations found. Adding initial migration..."
+  dotnet ef migrations add InitialCreate
+fi
+
+# Apply migrations and update the database
+echo "Updating database..."
+dotnet ef database update
+
+echo "Database migration and update completed successfully."
 
 # Build .NET application
 echo "Building .NET application..."
@@ -159,6 +231,8 @@ SyslogIdentifier=myapp
 StandardOutput=file:$APP_LOG_FILE
 StandardError=file:$APP_LOG_FILE
 Environment="ASPNETCORE_URLS=http://localhost:5000"
+#Environment="ASPNETCORE_ENVIRONMENT=Development"
+Environment="ConnectionStrings__DefaultConnection=host=127.0.0.1;Username=$DB_USER;password='$DB_PASSWORD';database=mydatabase"
 
 [Install]
 WantedBy=multi-user.target
