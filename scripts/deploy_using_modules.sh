@@ -3,23 +3,23 @@
 source config.sh
 source colors.sh
 
-source modules/setup_cloud_tests.sh
-source modules/setup_cloud_variables.sh
-source modules/setup_database.sh
-source modules/setup_health_checks.sh
-source modules/setup_load_balancing.sh
-source modules/setup_managed_instance_group.sh
+source modules/setup_project_variables.sh
+source modules/pre_deploy_checks.sh
 source modules/setup_vpc_network.sh
+source modules/setup_managed_instance_group.sh
+source modules/setup_health_checks.sh
+source modules/setup_load_balancer.sh
+source modules/setup_sql_database.sh
 
 main() {
-    setup_cloud_variables
-    setup_cloud_tests
+    setup_project_variables
+    pre_deploy_checks
     setup_vpc_network
     setup_vpc_peering
     setup_managed_instance_group
     setup_health_checks
-    setup_load_balancing
-    setup_database
+    setup_load_balancer
+    setup_sql_database
     setup_firewall_rules
 }
 

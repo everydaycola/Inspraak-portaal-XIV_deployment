@@ -8,7 +8,7 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-setup_cloud_tests() {
+pre_deploy_checks() {
     echo_in_yellow "Doing some checks..."
     # Check if gcloud cli is installed
     if ! command_exists gcloud; then

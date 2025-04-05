@@ -3,7 +3,7 @@
 source colors.sh
 source config.sh
 
-setup_load_balancing() {
+setup_load_balancer() {
     echo_in_green "Creating Load Balancer..."
     # Create a Backend Service
     gcloud compute backend-services create "$BACKEND_SERVICE_NAME" \
