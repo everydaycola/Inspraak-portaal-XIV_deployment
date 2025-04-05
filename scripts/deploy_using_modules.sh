@@ -15,6 +15,7 @@ main() {
     setup_cloud_variables
     setup_cloud_tests
     setup_vpc_network
+    setup_vpc_peering
     setup_managed_instance_group
     setup_health_checks
     setup_load_balancing

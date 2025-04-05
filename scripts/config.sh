@@ -25,9 +25,9 @@ HTTP_PROXY_NAME="web-http-proxy"
 FORWARDING_RULE_NAME="web-forwarding-rule"
 
 # VPC variables
-VPC_NETWORK_NAME="my-custom-network"
+VPC_NETWORK_NAME="my-network"
 VPC_NETWORK_REGION="europe-west1"
-VPC_SUBNET_NAME="subnet-for-custom-network"
+VPC_SUBNET_NAME="subnet-for-my-network"
 VPC_SUBNET_RANGE="10.10.0.0/24"
 
 # Startup Script
