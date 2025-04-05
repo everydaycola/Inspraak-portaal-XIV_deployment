@@ -6,7 +6,6 @@ source colors.sh
 source modules/setup_cloud_tests.sh
 source modules/setup_cloud_variables.sh
 source modules/setup_database.sh
-source modules/setup_firewall_rules.sh
 source modules/setup_health_checks.sh
 source modules/setup_load_balancing.sh
 source modules/setup_managed_instance_group.sh
