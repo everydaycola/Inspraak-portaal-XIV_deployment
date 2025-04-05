@@ -18,7 +18,7 @@ echo_in_green "Doing some checks..."
 # Check if gcloud cli is installed
 if ! command_exists gcloud; then
     echo_in_red "Error: gcloud CLI is not installed. Please look at the prerequisites for this script."
-    i exit 1
+    exit 1
 fi
 
 if ! gcloud auth list --format="value(account)" | grep -q "@"; then
