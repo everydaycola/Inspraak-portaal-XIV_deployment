@@ -9,6 +9,7 @@ setup_load_balancing() {
     gcloud compute backend-services create "$BACKEND_SERVICE_NAME" \
         --protocol=HTTP \
         --health-checks="$HEALTH_CHECK_NAME" \
+        --network="$VPC_NETWORK_NAME" \
         --global
 
     # Add the Instance Group to Backend Service

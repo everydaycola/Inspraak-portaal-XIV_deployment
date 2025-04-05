@@ -19,7 +19,7 @@ setup_database() {
             --tier="$SQL_TIER" \
             --region="$DB_REGION" \
             --root-password="$DB_PASSWORD" \
-            --network="default"
+            --network="$VPC_NETWORK_NAME"
     fi
     echo_in_purple "Cloud SQL Instance '$DB_INSTANCE_NAME'"
 

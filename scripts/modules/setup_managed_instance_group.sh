@@ -13,6 +13,8 @@ setup_managed_instance_group() {
         --image-project="$IMAGE_PROJECT" \
         --metadata=startup-script="$(cat $STARTUP_SCRIPT)" \
         --tags=http-server,https-server \
+        --network="$VPC_NETWORK_NAME" \
+        --subnet="$VPC_SUBNET_NAME" \
         --scopes=cloud-platform
 
     echo_in_green "Creating MIG..."

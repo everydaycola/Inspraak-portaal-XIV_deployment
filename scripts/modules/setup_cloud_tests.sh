@@ -9,7 +9,7 @@ command_exists() {
 }
 
 setup_cloud_tests() {
-    echo_in_green "Doing some checks..."
+    echo_in_yellow "Doing some checks..."
     # Check if gcloud cli is installed
     if ! command_exists gcloud; then
         echo_in_red "Error: gcloud CLI is not installed. Please look at the prerequisites for this script."
@@ -40,4 +40,5 @@ setup_cloud_tests() {
     else
         STARTUP_METADATA="--metadata=startup-script=$(cat $STARTUP_SCRIPT)"
     fi
+    echo_in_yellow "Checks finished..."
 }
