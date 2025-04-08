@@ -3,7 +3,7 @@
 source colors.sh
 source config.sh
 
-setup_database() {
+setup_sql_database() {
     # Collecting Credentials from the secret manager
     DB_PASSWORD=$(gcloud secrets versions access latest --secret=cloud_sql_password)
     DB_USER=$(gcloud secrets versions access latest --secret=cloud_sql_user)
