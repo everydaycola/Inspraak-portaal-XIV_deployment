@@ -6,6 +6,7 @@ source colors.sh
 source modules/setup_project_variables.sh
 source modules/pre_deploy_checks.sh
 source modules/setup_vpc_network.sh
+source modules/setup_redis_instance.sh
 source modules/setup_managed_instance_group.sh
 source modules/setup_health_checks.sh
 source modules/setup_load_balancer.sh
@@ -16,6 +17,7 @@ main() {
     pre_deploy_checks
     setup_vpc_network
     setup_vpc_peering
+    setup_redis_instance
     setup_managed_instance_group
     setup_health_checks
     setup_load_balancer

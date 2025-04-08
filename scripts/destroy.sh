@@ -4,6 +4,14 @@
 source config.sh
 source colors.sh
 
+# Redis Instance Deletion
+if gcloud redis instances describe my-redis-instance --region="$REGION" >/dev/null 2>&1; then
+        echo_in_orange "Deleting Redis instance 'my-redis-instance'..."
+        gcloud redis instances delete my-redis-instance --region="$REGION" --quiet
+else
+        echo_in_red "Redis instance 'my-redis-instance' does not exist."
+fi
+
 # Cloud SQL Instance Deletion
 if gcloud sql instances describe "$DB_INSTANCE_NAME" >/dev/null 2>&1; then
         echo_in_orange "Deleting Cloud SQL instance '$DB_INSTANCE_NAME'..."

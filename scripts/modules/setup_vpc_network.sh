@@ -115,7 +115,21 @@ setup_firewall_rules() {
             --source-ranges="$VPC_SUBNET_RANGE" \
             --target-tags=redis-server \
             --description="Allow internal Redis traffic from application instances"
+        echo_in_green "Redis finished'..."
+
     else
         echo_in_yellow "Firewall rule allow-redis already exists."
     fi
+
+    # Create firewall rule to allow ssh traffic (if it doesn't exist)
+    if ! gcloud compute firewall-rules describe allow-ssh --network="$VPC_NETWORK_NAME" >/dev/null 2>&1; then
+        echo_in_green "Creating firewall rule 'allow-ssh'..."
+        gcloud compute firewall-rules create allow-ssh-my-network \
+            --network=my-network \
+            --allow=tcp:22 \
+            --source-ranges=0.0.0.0/0
+    else
+        echo_in_yellow "Firewall rule allow-ssh already exists."
+    fi
+
 }

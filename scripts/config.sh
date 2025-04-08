@@ -29,6 +29,8 @@ VPC_NETWORK_NAME="my-network"
 VPC_NETWORK_REGION="europe-west1"
 VPC_SUBNET_NAME="subnet-for-my-network"
 VPC_SUBNET_RANGE="10.10.0.0/24"
+PSA_RANGE_NAME="google-managed-services-range" # needed for Redis instance
+PSA_IP_RANGE_CIDR="10.20.0.0/24"
 
 # Startup Script
 STARTUP_SCRIPT="startup-script.sh"
