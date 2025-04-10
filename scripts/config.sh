@@ -23,6 +23,7 @@ BACKEND_SERVICE_NAME="web-backend-service"
 URL_MAP_NAME="web-url-map"
 HTTP_PROXY_NAME="web-http-proxy"
 FORWARDING_RULE_NAME="web-forwarding-rule"
+STATIC_IP_NAME="loadbalancer-static-ip"
 
 # VPC variables
 VPC_NETWORK_NAME="my-network"

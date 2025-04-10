@@ -47,7 +47,8 @@ setup_load_balancer() {
         gcloud compute forwarding-rules create "$FORWARDING_RULE_NAME" \
             --global \
             --target-http-proxy="$HTTP_PROXY_NAME" \
-            --ports=80
+            --ports=80 \
+            --address="$STATIC_IP_NAME"
     else
         echo_in_yellow "Forwarding Rule '$FORWARDING_RULE_NAME' already exists. Skipping creation."
     fi
