@@ -21,3 +21,7 @@ echo_in_red() {
 echo_in_purple() {
     echo -e "${PURPLE}$1${ENDCOLOR}"
 }
+
+echo_in_yellow() {
+    echo -e "${YELLOW}$1${ENDCOLOR}"
+}

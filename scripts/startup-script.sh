@@ -3,12 +3,12 @@ set -x
 
 # Variables
 GIT_REPO="git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git"
-GIT_BRANCH="main"
+GIT_BRANCH="development"
 APP_DIR="/root/myapp"
 APP_OUT_DIR="$APP_DIR/out"
 APP_LOG_FILE="/var/log/myapp/myapp.log"
 NGINX_CONFIG="/etc/nginx/sites-available/myapp"
-DOMAIN_NAME="myapp.example.com" #replace with your domain.
+DOMAIN_NAME="www.ip14.be" #replace with your domain.
 
 # Ensure .ssh directory exists
 mkdir -p ~/.ssh
@@ -69,8 +69,6 @@ export HOME=/root
 
 # Ensure necessary EF Core packages are installed
 cd "$APP_DIR"
-dotnet add package Microsoft.EntityFrameworkCore.Design
-dotnet add package Microsoft.EntityFrameworkCore.Tools
 
 # Ensure we're in the /root directory
 cd /root
@@ -98,6 +96,24 @@ DB_PASSWORD=$(gcloud secrets versions access latest --secret=cloud_sql_password)
 #DB_USER=$(gcloud secrets versions access latest --secret=cloud_sql_user)
 DB_USER="postgres"
 
+# Retrieve Redis Private IP
+# TODO change this --region flag to be more dynamic
+REDIS_PRIVATE_IP=$(gcloud redis instances describe my-redis-instance --region=europe-west1 --format="value(host)")
+
+# Check if retrieval was successful
+if [ -z "$REDIS_PRIVATE_IP" ]; then
+  echo "ERROR: Failed to retrieve Redis private IP."
+  exit 1
+fi
+
+# Retrieve MailJet Secrets
+MJ_APIKEY_PUBLIC=$(gcloud secrets versions access latest --secret=mj-api-key-public)
+MJ_APIKEY_PRIVATE=$(gcloud secrets versions access latest --secret=mj-api-key-secret)
+
+# Set environment variable
+export MJ_APIKEY_PUBLIC="$MJ_APIKEY_PUBLIC"
+export MJ_APIKEY_PRIVATE="$MJ_APIKEY_PRIVATE"
+export REDIS_PRIVATE_IP="$REDIS_PRIVATE_IP"
 export PGPASSWORD="$DB_PASSWORD"
 
 echo "INSTANCE_CONNECTION_NAME: $INSTANCE_CONNECTION_NAME"
@@ -126,7 +142,7 @@ Restart=always
 RestartSec=10
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.tar get
 EOF
 
 sudo systemctl daemon-reload
@@ -233,6 +249,8 @@ StandardError=file:$APP_LOG_FILE
 Environment="ASPNETCORE_URLS=http://localhost:5000"
 #Environment="ASPNETCORE_ENVIRONMENT=Development"
 Environment="ConnectionStrings__DefaultConnection=host=127.0.0.1;Username=$DB_USER;password='$DB_PASSWORD';database=mydatabase"
+Environment="Redis_Configuration=$REDIS_PRIVATE_IP:6379"
+Environment="Redis_InstanceName=my-redis-instance"
 
 [Install]
 WantedBy=multi-user.target
