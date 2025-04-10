@@ -3,12 +3,12 @@ set -x
 
 # Variables
 GIT_REPO="git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git"
-GIT_BRANCH="setup_redis-branch"
+GIT_BRANCH="development"
 APP_DIR="/root/myapp"
 APP_OUT_DIR="$APP_DIR/out"
 APP_LOG_FILE="/var/log/myapp/myapp.log"
 NGINX_CONFIG="/etc/nginx/sites-available/myapp"
-DOMAIN_NAME="myapp.example.com" #replace with your domain.
+DOMAIN_NAME="www.ip14.be" #replace with your domain.
 
 # Ensure .ssh directory exists
 mkdir -p ~/.ssh
@@ -106,7 +106,13 @@ if [ -z "$REDIS_PRIVATE_IP" ]; then
   exit 1
 fi
 
+# Retrieve MailJet Secrets
+MJ_APIKEY_PUBLIC=$(gcloud secrets versions access latest --secret=mj-api-key-public)
+MJ_APIKEY_PRIVATE=$(gcloud secrets versions access latest --secret=mj-api-key-secret)
+
 # Set environment variable
+export MJ_APIKEY_PUBLIC="$MJ_APIKEY_PUBLIC"
+export MJ_APIKEY_PRIVATE="$MJ_APIKEY_PRIVATE"
 export REDIS_PRIVATE_IP="$REDIS_PRIVATE_IP"
 export PGPASSWORD="$DB_PASSWORD"
 
