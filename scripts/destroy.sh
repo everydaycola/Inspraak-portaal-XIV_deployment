@@ -7,7 +7,7 @@ source colors.sh
 # Redis Instance Deletion
 if gcloud redis instances describe my-redis-instance --region="$REGION" >/dev/null 2>&1; then
         echo_in_orange "Deleting Redis instance 'my-redis-instance'..."
-#        gcloud redis instances delete my-redis-instance --region="$REGION" --quiet
+        gcloud redis instances delete my-redis-instance --region="$REGION" --quiet
 else
         echo_in_red "Redis instance 'my-redis-instance' does not exist."
 fi
@@ -15,7 +15,7 @@ fi
 # Cloud SQL Instance Deletion
 if gcloud sql instances describe "$DB_INSTANCE_NAME" >/dev/null 2>&1; then
         echo_in_orange "Deleting Cloud SQL instance '$DB_INSTANCE_NAME'..."
-#        gcloud sql instances delete "$DB_INSTANCE_NAME" --quiet
+        gcloud sql instances delete "$DB_INSTANCE_NAME" --quiet
 else
         echo_in_red "Cloud SQL instance '$DB_INSTANCE_NAME' does not exist."
 fi
@@ -23,7 +23,7 @@ fi
 # Private IP Address range deletion.
 if gcloud compute addresses describe google-managed-services-range --global >/dev/null 2>&1; then
         echo_in_orange "Deleting private IP address range 'google-managed-services-range'..."
-#        gcloud compute addresses delete google-managed-services-range --global --quiet
+        gcloud compute addresses delete google-managed-services-range --global --quiet
 else
         echo_in_red "private IP address range 'google-managed-services-range' does not exist."
 fi
@@ -31,7 +31,7 @@ fi
 #Private Service Access peering deletion.
 if gcloud services vpc-peerings list --network="$VPC_NETWORK_NAME" | grep servicenetworking.googleapis.com >/dev/null 2>&1; then
         echo_in_orange "Deleting VPC peering connection..."
-#        gcloud services vpc-peerings delete --service=servicenetworking.googleapis.com --network="$VPC_NETWORK_NAME" --quiet
+        gcloud services vpc-peerings delete --service=servicenetworking.googleapis.com --network="$VPC_NETWORK_NAME" --quiet
 else
         echo_in_red "VPC peering connection does not exist."
 fi

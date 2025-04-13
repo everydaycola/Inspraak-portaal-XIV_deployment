@@ -10,7 +10,8 @@ setup_load_balancer() {
     if ! gcloud compute backend-services describe "$BACKEND_SERVICE_NAME" --global >/dev/null 2>&1; then
         echo_in_green "Creating Backend Service..."
         gcloud compute backend-services create "$BACKEND_SERVICE_NAME" \
-            --protocol=HTTPS \
+            --protocol=HTTP \
+            --port-name=http \
             --health-checks="$HEALTH_CHECK_NAME" \
             --network="$VPC_NETWORK_NAME" \
             --global
@@ -33,35 +34,17 @@ setup_load_balancer() {
         echo_in_yellow "URL Map '$URL_MAP_NAME' already exists. Skipping creation."
     fi
 
-    # Check if HTTP Proxy exists
-    if ! gcloud compute target-http-proxies describe "$HTTP_PROXY_NAME" --global >/dev/null 2>&1; then
-        echo_in_green "Creating HTTP Proxy..."
-        gcloud compute target-http-proxies create "$HTTP_PROXY_NAME" --url-map="$URL_MAP_NAME"
-    else
-        echo_in_yellow "HTTP Proxy '$HTTP_PROXY_NAME' already exists. Skipping creation."
-    fi
-
-    # Create HTTPS Proxy
+    # Check if HTTPS Proxy exists
     if ! gcloud compute target-https-proxies describe "$HTTPS_PROXY_NAME" --global >/dev/null 2>&1; then
         echo_in_green "Creating HTTPS Proxy..."
-        gcloud compute target-https-proxies create $HTTPS_PROXY_NAME \
+        gcloud compute target-https-proxies create "$HTTPS_PROXY_NAME" \
             --url-map="$URL_MAP_NAME" \
-            --ssl-certificates="$CERT_NAME" --global
+            --ssl-certificates="$SSL_CERT"
     else
-        echo_in_yellow "HTTPS Proxy '$HTTP_PROXY_NAME' already exists. Skipping creation."
-    fi
-    # Check if Forwarding Rule exists
-    if ! gcloud compute forwarding-rules describe "$FORWARDING_RULE_HTTP_NAME" --global >/dev/null 2>&1; then
-        echo_in_green "Creating Global Forwarding HTTP Rule..."
-        gcloud compute forwarding-rules create "$FORWARDING_RULE_HTTP_NAME" \
-            --global \
-            --target-http-proxy="$HTTP_PROXY_NAME" \
-            --ports=80 \
-            --address="$STATIC_IP_NAME"
-    else
-        echo_in_yellow "Forwarding Rule '$FORWARDING_RULE_HTTP_NAME' already exists. Skipping creation."
+        echo_in_yellow "HTTP Proxy '$HTTPS_PROXY_NAME' already exists. Skipping creation."
     fi
 
+    # Check if HTTPS forwarding rule exists
     if ! gcloud compute forwarding-rules describe "$FORWARDING_RULE_HTTPS_NAME" --global >/dev/null 2>&1; then
         echo_in_green "Creating Global Forwarding HTTPS Rule..."
         gcloud compute forwarding-rules create "$FORWARDING_RULE_HTTPS_NAME" \

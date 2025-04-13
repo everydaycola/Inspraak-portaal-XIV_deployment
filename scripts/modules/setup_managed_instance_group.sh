@@ -35,6 +35,11 @@ setup_managed_instance_group() {
             --zone="$ZONE"
         echo_in_green "MIG Created."
 
+        echo_in_green "Setting named ports..."
+        gcloud compute instance-groups set-named-ports "$INSTANCE_GROUP_NAME" \
+            --named-ports=http:80 \
+            --zone="$ZONE"
+
         echo_in_green "Setting up autoscaler..."
         # Set up Autoscaler
         gcloud compute instance-groups managed set-autoscaling "$INSTANCE_GROUP_NAME" \

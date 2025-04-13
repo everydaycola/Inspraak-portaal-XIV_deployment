@@ -87,7 +87,6 @@ setup_firewall_rules() {
             --network="$VPC_NETWORK_NAME" \
             --allow=tcp:80,tcp:443,tcp:5000 \
             --source-ranges=0.0.0.0/0 \
-            --target-tags=http-server \
             --description="Allow HTTP, HTTPS, and application traffic from the internet"
     else
         echo_in_yellow "Firewall rule allow-http-https already exists."
