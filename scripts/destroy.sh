@@ -36,11 +36,17 @@ else
         echo_in_red "VPC peering connection does not exist."
 fi
 
-echo_in_orange "Deleting forwarding rule..."
-gcloud compute forwarding-rules delete "$FORWARDING_RULE_NAME" --global --quiet
+# Delete Forwarding Rules
+echo_in_orange "Deleting Forwarding Rules..."
+gcloud compute forwarding-rules delete "$FORWARDING_RULE_HTTP_NAME" --global --quiet
+gcloud compute forwarding-rules delete "$FORWARDING_RULE_HTTPS_NAME" --global --quiet
 
 echo_in_orange "Deleting HTTP proxy..."
 gcloud compute target-http-proxies delete "$HTTP_PROXY_NAME" --quiet
+
+#Delete HTTPS proxy
+echo_in_orange "Deleting HTTPS proxy..."
+gcloud compute target-https-proxies delete "$HTTPS_PROXY_NAME" --quiet
 
 echo_in_orange "Deleting URL map..."
 gcloud compute url-maps delete "$URL_MAP_NAME" --quiet

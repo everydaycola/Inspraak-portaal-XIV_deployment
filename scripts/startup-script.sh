@@ -247,7 +247,7 @@ SyslogIdentifier=myapp
 StandardOutput=file:$APP_LOG_FILE
 StandardError=file:$APP_LOG_FILE
 Environment="ASPNETCORE_URLS=http://localhost:5000"
-#Environment="ASPNETCORE_ENVIRONMENT=Development"
+Environment="ASPNETCORE_ENVIRONMENT=Development"
 Environment="ConnectionStrings__DefaultConnection=host=127.0.0.1;Username=$DB_USER;password='$DB_PASSWORD';database=mydatabase"
 Environment="Redis_Configuration=$REDIS_PRIVATE_IP:6379"
 Environment="Redis_InstanceName=my-redis-instance"
