@@ -3,7 +3,7 @@ set -x
 
 # Variables
 GIT_REPO="git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git"
-GIT_BRANCH="development"
+GIT_BRANCH="#45setup-GCS"
 APP_DIR="/root/myapp"
 APP_OUT_DIR="$APP_DIR/out"
 APP_LOG_FILE="/var/log/myapp/myapp.log"
@@ -110,6 +110,9 @@ fi
 MJ_APIKEY_PUBLIC=$(gcloud secrets versions access latest --secret=mj-api-key-public)
 MJ_APIKEY_PRIVATE=$(gcloud secrets versions access latest --secret=mj-api-key-secret)
 
+# Retrieve bucket name
+BUCKET=$(gcloud secrets versions access latest --secret=my-app-bucket-name)
+
 # Set environment variable
 export MJ_APIKEY_PUBLIC="$MJ_APIKEY_PUBLIC"
 export MJ_APIKEY_PRIVATE="$MJ_APIKEY_PRIVATE"
@@ -210,6 +213,7 @@ cat <<EOF >"$NGINX_CONFIG"
 server {
     listen 80;
     server_name $DOMAIN_NAME;
+    client_max_body_size 100M;
 
     location / {
         proxy_pass http://localhost:5000;
@@ -251,6 +255,7 @@ Environment="ASPNETCORE_ENVIRONMENT=Development"
 Environment="ConnectionStrings__DefaultConnection=host=127.0.0.1;Username=$DB_USER;password='$DB_PASSWORD';database=mydatabase"
 Environment="Redis_Configuration=$REDIS_PRIVATE_IP:6379"
 Environment="Redis_InstanceName=my-redis-instance"
+Environment="GoogleCloud_BucketName=$BUCKET"
 
 [Install]
 WantedBy=multi-user.target

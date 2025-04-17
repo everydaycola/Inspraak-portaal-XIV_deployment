@@ -10,6 +10,7 @@ source modules/setup_redis_instance.sh
 source modules/setup_managed_instance_group.sh
 source modules/setup_health_checks.sh
 source modules/setup_load_balancer.sh
+source modules/setup_bucket.sh
 source modules/setup_sql_database.sh
 
 main() {
@@ -21,6 +22,7 @@ main() {
     setup_managed_instance_group
     setup_health_checks
     setup_load_balancer
+    setup_bucket
     setup_sql_database
     setup_firewall_rules
 }
