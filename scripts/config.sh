@@ -42,5 +42,5 @@ STARTUP_SCRIPT="startup-script.sh"
 # Postgres variables
 DB_INSTANCE_NAME="postgres-db"
 DB_REGION="europe-west1"
-SQL_TIER="db-perf-optimized-N-2"
+SQL_TIER="db-n1-standard-1"
 SQL_VERSION="POSTGRES_17"

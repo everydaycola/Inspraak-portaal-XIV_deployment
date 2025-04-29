@@ -1,6 +1,7 @@
 #!/bin/bash
 
 source colors.sh
+source config.sh
 
 # This script should be run ONCE when a new organization wants to use the scripts
 
@@ -14,25 +15,25 @@ check_project_exists() {
 }
 
 PROJECT_ID=""
-PROJECT_EXISTS=false
+PROJECT_EXISTS_FOR_BILLING=false
 
-if check_project_exists "$INPUT_PROJECT"; then
-    echo_in_yellow "Project '$INPUT_PROJECT' already exists. Using this project."
-    PROJECT_ID="$INPUT_PROJECT"
-    PROJECT_EXISTS=true
-else
-    echo_in_yellow "Project '$INPUT_PROJECT' does not exist. Attempting to create a new one."
-    PROJECT_NAME="$INPUT_PROJECT" # Use the input as the desired name
+# if check_project_exists "$INPUT_PROJECT"; then
+#     echo_in_yellow "Project '$INPUT_PROJECT' already exists. Using this project."
+#     PROJECT_ID="$INPUT_PROJECT"
+#     PROJECT_EXISTS=true
+# else
+#     echo_in_yellow "Project '$INPUT_PROJECT' does not exist. Attempting to create a new one."
+#     PROJECT_NAME="$INPUT_PROJECT" # Use the input as the desired name
 
-    SANITIZE_NAME=$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g' | cut -c -20) # Lowercase, alphanumeric, hyphen, max 20 chars
-    RANDOM_STRING=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
-    PROJECT_ID="${SANITIZE_NAME}-${RANDOM_STRING}"
-    PROJECT_ID=$(echo "$PROJECT_ID" | cut -c -30) # Ensure max 30 chars
+#     SANITIZE_NAME=$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g' | cut -c -20) # Lowercase, alphanumeric, hyphen, max 20 chars
+#     RANDOM_STRING=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
+#     PROJECT_ID="${SANITIZE_NAME}-${RANDOM_STRING}"
+#     PROJECT_ID=$(echo "$PROJECT_ID" | cut -c -30) # Ensure max 30 chars
 
-    echo_in_yellow "Generated Project ID: ${PROJECT_ID} (based on name '$PROJECT_NAME')"
-fi
+#     echo_in_yellow "Generated Project ID: ${PROJECT_ID} (based on name '$PROJECT_NAME')"
+# fi
 
-echo "Using Project ID: ${PROJECT_ID}"
+# echo "Using Project ID: ${PROJECT_ID}"
 
 read -p "$(echo -e ${YELLOW}Enter the Billing Account ID to link - optional, leave blank to skip: ${ENDCOLOR})" BILLING_ACCOUNT_ID
 
@@ -78,15 +79,16 @@ create_project() {
 }
 
 link_billing_account() {
-    if [[ -n "$BILLING_ACCOUNT_ID" ]] && [[ "$PROJECT_EXISTS" == "false" ]]; then
+    echo_in_blue "billing account method running $BILLING_ACCOUNT_ID, $PROJECT_EXISTS_FOR_BILLING"
+    if [[ -n "$BILLING_ACCOUNT_ID" ]] && [[ "$PROJECT_EXISTS_FOR_BILLING" == "false" ]]; then
         echo_in_blue "Linking billing account '$BILLING_ACCOUNT_ID' to project '$PROJECT_ID'..."
-        gcloud beta billing accounts projects link "$PROJECT_ID" "$BILLING_ACCOUNT_ID" 2>&1
+        gcloud beta billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT_ID" 2>&1
         if [ $? -eq 0 ]; then
             echo_in_green "Billing account linked successfully."
         else
             echo_in_red "Error linking billing account."
         fi
-    elif [[ -n "$BILLING_ACCOUNT_ID" ]] && [[ "$PROJECT_EXISTS" == "true" ]]; then
+    elif [[ -n "$BILLING_ACCOUNT_ID" ]] && [[ "$PROJECT_EXISTS_FOR_BILLING" == "true" ]]; then
         echo_in_yellow "Project already exists. Skipping explicit billing account linking (it should already be linked)."
     else
         echo_in_yellow "Skipping billing account linking."
@@ -136,7 +138,7 @@ get_project_number() {
     gcloud projects describe "$project_id" --format="value(projectNumber)"
 }
 
-set_iam_permissions() {
+setup_iam_permissions() {
     local PROJECT_NUMBER=$(get_project_number "$PROJECT_ID")
     local SERVICE_ACCOUNT_EMAIL="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 
@@ -227,17 +229,14 @@ setup_secrets() {
     # Prompt for Gitlab Deploy Key
     generate_deploy_key
 
-    # Prompt for Cloud SQL Instance Connection Name
-    read -p "$(echo -e ${YELLOW}Enter the Cloud SQL Instance Connection Name - e.g., project_ID:region:db_name: ${ENDCOLOR})" CLOUD_SQL_CONN
-    if [[ -n "$CLOUD_SQL_CONN" ]]; then
-        create_secret "cloud_sql_instance_connection_name"
-        add_secret_version "cloud_sql_instance_connection_name" "$CLOUD_SQL_CONN"
-    else
-        echo_in_yellow "Cloud SQL Instance Connection Name not provided, skipping secret creation."
-    fi
+    # Create cloud sql instance connection name secret
+    CLOUD_SQL_CONN=$PROJECT_ID:$DB_REGION:$DB_INSTANCE_NAME
+    echo "$CLOUD_SQL_CONN"
+    create_secret "cloud_sql_instance_connection_name"
+    add_secret_version "cloud_sql_instance_connection_name" "$CLOUD_SQL_CONN"
 
     # Prompt for Cloud SQL Password
-    read -p "$(echo -e -s ${YELLOW}Enter the Cloud SQL Password for user 'postgres': ${ENDCOLOR})" CLOUD_SQL_PASS
+    read -s -p "$(echo -e ${YELLOW}Enter the Cloud SQL Password for user 'postgres': ${ENDCOLOR})" CLOUD_SQL_PASS
     echo "\n" # Add a newline after the password input
     if [[ -n "$CLOUD_SQL_PASS" ]]; then
         create_secret "cloud_sql_password"
@@ -247,7 +246,7 @@ setup_secrets() {
     fi
 
     # Prompt for Mailjet Public API Key
-    read -p "$(echo -e ${YELLOW}Enter the Mailjet Public API Key: ${ENDCOLOR})" MJ_PUBLIC
+    read -s -p "$(echo -e ${YELLOW}Enter the Mailjet Public API Key: ${ENDCOLOR})" MJ_PUBLIC
     if [[ -n "$MJ_PUBLIC" ]]; then
         create_secret "mj-api-key-public"
         add_secret_version "mj-api-key-public" "$MJ_PUBLIC"
@@ -256,13 +255,100 @@ setup_secrets() {
     fi
 
     # Prompt for Mailjet Private API Key
-    read -p "$(echo -e -s ${YELLOW}Enter the Mailjet Private API Key: ${ENDCOLOR})" MJ_PRIVATE
+    read -s -p "$(echo -e ${YELLOW}Enter the Mailjet Private API Key: ${ENDCOLOR})" MJ_PRIVATE
     echo # Add a newline after the password input
     if [[ -n "$MJ_PRIVATE" ]]; then
         create_secret "mj-api-key-secret"
         add_secret_version "mj-api-key-secret" "$MJ_PRIVATE"
     else
         echo_in_yellow "Mailjet Private API Key not provided, skipping secret creation."
+    fi
+
+    # --- API "procinvies-in-cijfers" Key ---
+    read -p "$(echo -e ${YELLOW}Enter the API Key for 'pinc_api_key': ${ENDCOLOR})" API_PROCI_INV
+    create_secret "pinc_api_key"
+    add_secret_version "pinc_api_key" "$API_PROCI_INV"
+
+    # --- PINC API Key ---
+    read -p "$(echo -e ${YELLOW}Enter the PINC API Key: ${ENDCOLOR})" PINC_API
+    create_secret "pinc_api_key"
+    add_secret_version "pinc_api_key" "$PINC_API"
+
+    # --- My App Bucket Name ---
+    read -p "$(echo -e ${YELLOW}Enter the Name of your application\'s main storage bucket: ${ENDCOLOR})" APP_BUCKET_NAME
+    create_secret "pinc_api_key"
+    add_secret_version "my-app-bucket-name" "$APP_BUCKET_NAME"
+}
+
+setup_vpc_network_initial() {
+    echo_in_blue "Setting up VPC network..."
+
+    # Check if the necessary variables are defined in config.sh
+    if [[ -z "$VPC_NETWORK_NAME" ]]; then
+        echo_in_red "Error: VPC_NETWORK_NAME is not defined in config.sh. Please configure it."
+        return 1
+    fi
+    if [[ -z "$VPC_NETWORK_REGION" ]]; then
+        echo_in_red "Error: VPC_NETWORK_REGION is not defined in config.sh. Please configure it."
+        return 1
+    fi
+    if [[ -z "$VPC_SUBNET_NAME" ]]; then
+        echo_in_red "Error: VPC_SUBNET_NAME is not defined in config.sh. Please configure it."
+        return 1
+    fi
+    if [[ -z "$VPC_SUBNET_RANGE" ]]; then
+        echo_in_red "Error: VPC_SUBNET_RANGE is not defined in config.sh. Please configure it."
+        return 1
+    fi
+
+    echo_in_yellow "Using VPC network name: '$VPC_NETWORK_NAME' (configured in config.sh)."
+    echo_in_yellow "Using VPC network region: '$VPC_NETWORK_REGION' (configured in config.sh)."
+    echo_in_yellow "Using subnet name: '$VPC_SUBNET_NAME' (configured in config.sh)."
+    echo_in_yellow "Using subnet IP range: '$VPC_SUBNET_RANGE' (configured in config.sh)."
+
+    # Create VPC Network (if it doesn't exist)
+    if gcloud compute networks list --filter="name=$VPC_NETWORK_NAME" --format="value(name)" --project="$PROJECT_ID" 2>/dev/null | grep -q "$VPC_NETWORK_NAME"; then
+        echo_in_yellow "VPC network $VPC_NETWORK_NAME already exists."
+    else
+        echo_in_green "Creating VPC network: $VPC_NETWORK_NAME"
+        gcloud compute networks create "$VPC_NETWORK_NAME" --subnet-mode=custom --project="$PROJECT_ID"
+        if [ $? -ne 0 ]; then
+            echo_in_red "Failed to create VPC network."
+            return 1
+        fi
+    fi
+
+    # Create Subnet (if it doesn't exist)
+    if ! gcloud compute networks subnets describe "$VPC_SUBNET_NAME" --region="$VPC_NETWORK_REGION" --network="$VPC_NETWORK_NAME" --project="$PROJECT_ID" >/dev/null 2>&1; then
+        echo_in_green "Creating Subnet: $VPC_SUBNET_NAME"
+        gcloud compute networks subnets create "$VPC_SUBNET_NAME" --network="$VPC_NETWORK_NAME" --range="$VPC_SUBNET_RANGE" --region="$VPC_NETWORK_REGION" --project="$PROJECT_ID"
+        if [ $? -ne 0 ]; then
+            echo_in_red "Failed to create Subnet."
+            return 1
+        fi
+    else
+        echo_in_yellow "Subnet $VPC_SUBNET_NAME already exists."
+    fi
+}
+
+reserve_static_ip() {
+    gcloud compute addresses create "$STATIC_IP_NAME" --global --project="$PROJECT_ID" 2>&1
+    if [ $? -eq 0 ]; then
+        STATIC_IP=$(gcloud compute addresses describe "$STATIC_IP_NAME" --global --project="$PROJECT_ID" --format="value(address)")
+        echo_in_green "Global static IP address '$STATIC_IP' reserved with name '$STATIC_IP_NAME'."
+        echo_in_yellow "You can use this IP for your load balancer or other global resources."
+
+        echo_in_yellow "\n--- Domain Name Configuration ---"
+        echo_in_yellow "To make your application accessible via your domain name (e.g., www.yourdomain.com),"
+        echo_in_yellow "you will need to configure the DNS records at your domain registrar."
+        echo_in_yellow "Once your deployment script has finished running successfully,"
+        echo_in_yellow "it will output the public IP address of your load balancer."
+        echo_in_yellow "You will need to create an 'A' record (and potentially a 'CNAME' record for 'www') at your registrar"
+        echo_in_yellow "that points to this IP address."
+        echo_in_yellow "Please refer to your domain registrar's documentation for instructions on how to manage DNS records."
+        echo_in_yellow "---"
+    else
+        echo_in_red "Error reserving global static IP address '$STATIC_IP_NAME'."
     fi
 }
 
@@ -294,8 +380,9 @@ enable_apis
 set_default_region_zone
 
 setup_secrets
-
-set_iam_permissions
+setup_vpc_network_initial
+reserve_static_ip
+setup_iam_permissions
 
 echo_in_green "Initial project setup for '$PROJECT_ID' complete."
 echo_in_yellow "You can now run your main deployment script to provision resources."
