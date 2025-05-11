@@ -108,6 +108,7 @@ fi
 # Retrieve MailJet Secrets
 MJ_APIKEY_PUBLIC=$(gcloud secrets versions access latest --secret=mj-api-key-public)
 MJ_APIKEY_PRIVATE=$(gcloud secrets versions access latest --secret=mj-api-key-secret)
+BUCKET=$(gcloud secrets versions access latest --secret=my-app-bucket-name)
 PINC_API_KEY=$(gcloud secrets versions access latest --secret=pinc_api_key)
 
 # Set environment variable
@@ -116,6 +117,7 @@ export MJ_APIKEY_PRIVATE="$MJ_APIKEY_PRIVATE"
 export REDIS_PRIVATE_IP="$REDIS_PRIVATE_IP"
 export PGPASSWORD="$DB_PASSWORD"
 export PINC_API_KEY="$PINC_API_KEY"
+export BUCKET="$BUCKET"
 
 # Check if secrets were retrieved
 if [ -z "$INSTANCE_CONNECTION_NAME" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_USER" ]; then
@@ -247,6 +249,7 @@ Environment="ASPNETCORE_ENVIRONMENT=Development"
 Environment="ConnectionStrings__DefaultConnection=host=127.0.0.1;Username=$DB_USER;password='$DB_PASSWORD';database=mydatabase"
 Environment="Redis_Configuration=$REDIS_PRIVATE_IP:6379"
 Environment="Redis_InstanceName=my-redis-instance"
+Environment="GoogleCloud_BucketName=$BUCKET"
 Environment="PINC_API_KEY=$PINC_API_KEY"
 
 [Install]
