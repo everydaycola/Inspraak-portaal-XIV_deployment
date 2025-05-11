@@ -2,10 +2,10 @@
 
 source colors.sh
 source config.sh
+source secrets.sh
+source modules/create_ssl_cert.sh
 
 # This script should be run ONCE when a new organization wants to use the scripts
-
-read -p "$(echo -e ${YELLOW}Enter the desired Google Cloud Project Name or ID: ${ENDCOLOR})" INPUT_PROJECT
 
 # Function to check if a project exists
 check_project_exists() {
@@ -14,28 +14,7 @@ check_project_exists() {
     return $? # Returns 0 if exists, non-zero otherwise
 }
 
-PROJECT_ID=""
 PROJECT_EXISTS_FOR_BILLING=false
-
-# if check_project_exists "$INPUT_PROJECT"; then
-#     echo_in_yellow "Project '$INPUT_PROJECT' already exists. Using this project."
-#     PROJECT_ID="$INPUT_PROJECT"
-#     PROJECT_EXISTS=true
-# else
-#     echo_in_yellow "Project '$INPUT_PROJECT' does not exist. Attempting to create a new one."
-#     PROJECT_NAME="$INPUT_PROJECT" # Use the input as the desired name
-
-#     SANITIZE_NAME=$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g' | cut -c -20) # Lowercase, alphanumeric, hyphen, max 20 chars
-#     RANDOM_STRING=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
-#     PROJECT_ID="${SANITIZE_NAME}-${RANDOM_STRING}"
-#     PROJECT_ID=$(echo "$PROJECT_ID" | cut -c -30) # Ensure max 30 chars
-
-#     echo_in_yellow "Generated Project ID: ${PROJECT_ID} (based on name '$PROJECT_NAME')"
-# fi
-
-# echo "Using Project ID: ${PROJECT_ID}"
-
-read -p "$(echo -e ${YELLOW}Enter the Billing Account ID to link - optional, leave blank to skip: ${ENDCOLOR})" BILLING_ACCOUNT_ID
 
 # List of Google Cloud APIs to enable
 APIS_TO_ENABLE=(
@@ -52,11 +31,8 @@ APIS_TO_ENABLE=(
     dns.googleapis.com
     secretmanager.googleapis.com
     networkconnectivity.googleapis.com
-    networkservices.googleapis.com)
-
-# Default Compute Region and Zone (optional, can be set later or in deploy script)
-read -p "$(echo -e ${YELLOW}Enter the default Compute Region - optional - default=europe_west: ${ENDCOLOR})" DEFAULT_REGION
-read -p "$(echo -e ${YELLOW}Enter the default Compute Zone - optional - default=europe_west: ${ENDCOLOR})" DEFAULT_ZONE
+    networkservices.googleapis.com
+    servicenetworking.googleapis.com)
 
 # --- Helper Functions ---
 
@@ -76,10 +52,10 @@ create_project() {
         echo_in_red "Error creating project '$PROJECT_ID'."
         exit 1
     fi
+    gcloud config set project $PROJECT_ID
 }
 
 link_billing_account() {
-    echo_in_blue "billing account method running $BILLING_ACCOUNT_ID, $PROJECT_EXISTS_FOR_BILLING"
     if [[ -n "$BILLING_ACCOUNT_ID" ]] && [[ "$PROJECT_EXISTS_FOR_BILLING" == "false" ]]; then
         echo_in_blue "Linking billing account '$BILLING_ACCOUNT_ID' to project '$PROJECT_ID'..."
         gcloud beta billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT_ID" 2>&1
@@ -149,6 +125,7 @@ setup_iam_permissions() {
         "roles/redis.viewer"
         "roles/cloudsql.client"
         "roles/secretmanager.secretAccessor"
+        "roles/secretmanager.admin"
         "roles/storage.objectAdmin"
         "roles/storage.objectCreator"
         "roles/storage.objectViewer"
@@ -158,7 +135,7 @@ setup_iam_permissions() {
         echo "  Granting role: '$ROLE'..."
         gcloud projects add-iam-policy-binding "$PROJECT_ID" \
             --member="serviceAccount:$SERVICE_ACCOUNT_EMAIL" \
-            --role="$ROLE" 2>&1
+            --role="$ROLE" 2>&1 >/dev/null
         if [ $? -eq 0 ]; then
             echo_in_green "    Granted '$ROLE'."
         else
@@ -206,7 +183,6 @@ generate_deploy_key() {
         PUBLIC_KEY=$(cat "$KEY_PATH.pub")
         create_secret "gitlab_deploy_key"
         add_secret_version "gitlab_deploy_key" "$PRIVATE_KEY"
-        # gcloud secrets versions add "gitlab_deploy_key" --data-file=$KEY_PATH --project="$PROJECT_ID" --quiet
         if [ $? -eq 0 ]; then
             echo_in_green "Private key stored in Secret Manager as 'gitlab_deploy_key'."
             echo_in_yellow "\n--- Public Key for GitLab ---"
@@ -235,49 +211,56 @@ setup_secrets() {
     create_secret "cloud_sql_instance_connection_name"
     add_secret_version "cloud_sql_instance_connection_name" "$CLOUD_SQL_CONN"
 
-    # Prompt for Cloud SQL Password
-    read -s -p "$(echo -e ${YELLOW}Enter the Cloud SQL Password for user 'postgres': ${ENDCOLOR})" CLOUD_SQL_PASS
-    echo "\n" # Add a newline after the password input
-    if [[ -n "$CLOUD_SQL_PASS" ]]; then
+    # Cloud SQL Password
+    if [[ -n "$CLOUD_SQL_PASSWORD" ]]; then
         create_secret "cloud_sql_password"
-        add_secret_version "cloud_sql_password" "$CLOUD_SQL_PASS"
+        add_secret_version "cloud_sql_password" "$CLOUD_SQL_PASSWORD"
     else
         echo_in_yellow "Cloud SQL Password not provided, skipping secret creation."
     fi
 
-    # Prompt for Mailjet Public API Key
-    read -s -p "$(echo -e ${YELLOW}Enter the Mailjet Public API Key: ${ENDCOLOR})" MJ_PUBLIC
-    if [[ -n "$MJ_PUBLIC" ]]; then
+    # Cloud SQL User
+    if [[ -n "$CLOUD_SQL_USER" ]]; then
+        create_secret "cloud_sql_user"
+        add_secret_version "cloud_sql_user" "$CLOUD_SQL_USER"
+    else
+        echo_in_yellow "Cloud SQL user not provided, skipping secret creation."
+    fi
+
+    if [[ -n "$MJ_PUBLIC_API_KEY" ]]; then
         create_secret "mj-api-key-public"
-        add_secret_version "mj-api-key-public" "$MJ_PUBLIC"
+        add_secret_version "mj-api-key-public" "$MJ_PUBLIC_API_KEY"
     else
         echo_in_yellow "Mailjet Public API Key not provided, skipping secret creation."
     fi
 
-    # Prompt for Mailjet Private API Key
-    read -s -p "$(echo -e ${YELLOW}Enter the Mailjet Private API Key: ${ENDCOLOR})" MJ_PRIVATE
-    echo # Add a newline after the password input
-    if [[ -n "$MJ_PRIVATE" ]]; then
+    if [[ -n "$MJ_PRIVATE_API_KEY" ]]; then
         create_secret "mj-api-key-secret"
-        add_secret_version "mj-api-key-secret" "$MJ_PRIVATE"
+        add_secret_version "mj-api-key-secret" "$MJ_PRIVATE_API_KEY"
     else
         echo_in_yellow "Mailjet Private API Key not provided, skipping secret creation."
     fi
 
-    # --- API "procinvies-in-cijfers" Key ---
-    read -p "$(echo -e ${YELLOW}Enter the API Key for 'pinc_api_key': ${ENDCOLOR})" API_PROCI_INV
-    create_secret "pinc_api_key"
-    add_secret_version "pinc_api_key" "$API_PROCI_INV"
+    create_secret "cloudflare-origin-private-key"
+    gcloud secrets versions add "cloudflare-origin-private-key" --data-file="./cf-key.pem" --project=$PROJECT_ID
 
-    # --- PINC API Key ---
-    read -p "$(echo -e ${YELLOW}Enter the PINC API Key: ${ENDCOLOR})" PINC_API
-    create_secret "pinc_api_key"
-    add_secret_version "pinc_api_key" "$PINC_API"
+    create_secret "cloudflare-origin-certificate"
+    gcloud secrets versions add cloudflare-origin-certificate --data-file="./cf-cert.pem" --project=$PROJECT_ID
 
-    # --- My App Bucket Name ---
-    read -p "$(echo -e ${YELLOW}Enter the Name of your application\'s main storage bucket: ${ENDCOLOR})" APP_BUCKET_NAME
+    # Create SSL cert
+    echo $PROJECT_ID
+    gcloud beta compute ssl-certificates create $SSL_CERT \
+        --project=$PROJECT_ID \
+        --global \
+        --private-key="./cf-key.pem" \
+        --certificate="./cf-cert.pem"
+    create_ssl_cert
+
     create_secret "pinc_api_key"
-    add_secret_version "my-app-bucket-name" "$APP_BUCKET_NAME"
+    add_secret_version "pinc_api_key" "$PINC_API_KEY"
+
+    create_secret "my-app-bucket-name"
+    add_secret_version "my-app-bucket-name" "$APP_BUCKET"
 }
 
 setup_vpc_network_initial() {
@@ -357,21 +340,12 @@ reserve_static_ip() {
 check_gcloud_installed
 
 # Determine Project ID and whether it exists
-check_project_exists "$INPUT_PROJECT"
+check_project_exists "$PROJECT_ID"
 PROJECT_EXISTS=$?
 if [ "$PROJECT_EXISTS" -eq 0 ]; then
-    echo_in_yellow "Using existing project '$INPUT_PROJECT'."
-    PROJECT_ID="$INPUT_PROJECT"
+    echo_in_yellow "Using existing project '$PROJECT_ID'."
 else
-    echo_in_yellow "Project '$INPUT_PROJECT' does not exist. Creating a new one."
-    PROJECT_NAME="$INPUT_PROJECT" # Use the input as the desired name
-
-    SANITIZE_NAME=$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g' | cut -c -20) # Lowercase, alphanumeric, hyphen, max 20 chars
-    RANDOM_STRING=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
-    PROJECT_ID="${SANITIZE_NAME}-${RANDOM_STRING}"
-    PROJECT_ID=$(echo "$PROJECT_ID" | cut -c -30) # Ensure max 30 chars
-
-    echo_in_yellow "Generated Project ID: ${PROJECT_ID} (based on name '$PROJECT_NAME')"
+    echo_in_yellow "Project '$PROJECT_ID' does not exist. Creating a new one."
     create_project
 fi
 

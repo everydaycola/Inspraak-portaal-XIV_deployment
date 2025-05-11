@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Google Cloud Project
-PROJECT_ID="cs2-eycken-tibo"
+PROJECT_ID="cs2-eycken-tiba"
+PROJECT_NAME="IP-1"
 ZONE="europe-west1-d"
 REGION="europe-west1"
 
@@ -24,6 +25,12 @@ URL_MAP_NAME="web-url-map"
 #HTTP_PROXY_NAME="web-http-proxy"
 HTTPS_PROXY_NAME="web-https-proxy"
 SSL_CERT="cloudflare-origin-cert"
+DOMAIN="ip14.be"
+CERT_NAME="my-cert"
+DNS_AUTH_NAME="my-dns-auth"
+CERT_MAP_NAME="my-map"
+CERT_ENTRY_1="my-domain-entry"
+CERT_ENTRY_2="my-domain-and-wildcard-entry"
 #FORWARDING_RULE_HTTP_NAME="web-forwarding-rule"
 FORWARDING_RULE_HTTPS_NAME="https-forwarding-rule"
 STATIC_IP_NAME="loadbalancer-static-ip"
@@ -42,5 +49,5 @@ STARTUP_SCRIPT="startup-script.sh"
 # Postgres variables
 DB_INSTANCE_NAME="postgres-db"
 DB_REGION="europe-west1"
-SQL_TIER="db-n1-standard-1"
+SQL_TIER="db-perf-optimized-N-2"
 SQL_VERSION="POSTGRES_17"
