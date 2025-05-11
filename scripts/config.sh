@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Google Cloud Project
-PROJECT_ID="cs2-eycken-tiba"
+PROJECT_ID="ip14-complete-test7"
 PROJECT_NAME="IP-1"
 ZONE="europe-west1-d"
 REGION="europe-west1"

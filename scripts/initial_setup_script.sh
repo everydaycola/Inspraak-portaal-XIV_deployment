@@ -4,6 +4,7 @@ source colors.sh
 source config.sh
 source secrets.sh
 source modules/create_ssl_cert.sh
+source modules/add_lb_ip_to-cloudflare.sh
 
 # This script should be run ONCE when a new organization wants to use the scripts
 
@@ -117,6 +118,10 @@ get_project_number() {
 setup_iam_permissions() {
     local PROJECT_NUMBER=$(get_project_number "$PROJECT_ID")
     local SERVICE_ACCOUNT_EMAIL="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+    local CD_SA_NAME="gitlab-cd-fase"
+    local CD_SA_FASE_EMAIL="${CD_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+    local KEY_OUTPUT_PATH="gcloud-auth.json"
+    local KEY_OUTPUT_BASE64_PATH="gcloud-auth-base64.txt"
 
     echo_in_blue "Granting necessary IAM permissions to Compute Engine default service account: '$SERVICE_ACCOUNT_EMAIL'..."
 
@@ -143,7 +148,21 @@ setup_iam_permissions() {
         fi
     done
 
-    echo_in_green "IAM permissions granted to '$SERVICE_ACCOUNT_EMAIL'."
+    gcloud iam service-accounts create "$CD_SA_NAME" \
+        --project="$PROJECT_ID" \
+        --display-name="GitLab CI/CD Service Account"
+
+    gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+        --member="serviceAccount:$CD_SA_FASE_EMAIL" \
+        --role="roles/compute.instanceGroupManagerServiceAgent"
+
+    # Generate and download key
+    gcloud iam service-accounts keys create "$KEY_OUTPUT_PATH" \
+        --iam-account="$CD_SA_FASE_EMAIL" \
+        --project="$PROJECT_ID"
+
+    echo "Key saved to $KEY_OUTPUT_PATH -> follow the correct steps in the README to use this file correctly" # The content of this file needs to be added to gitlab repo > Settings > CI/CD > Variables (Type: file, Visible, disable protect variable, key: GCP_SA_KEY_JSON)
+    echo_in_green "IAM permissions granted to '$SERVICE_ACCOUNT_EMAIL' and '$CD_SA_FASE_EMAIL'."
 }
 
 # --- Secret Manager Setup ---
@@ -356,6 +375,7 @@ set_default_region_zone
 setup_secrets
 setup_vpc_network_initial
 reserve_static_ip
+add_lb_ip_to_cloudflare
 setup_iam_permissions
 
 echo_in_green "Initial project setup for '$PROJECT_ID' complete."
