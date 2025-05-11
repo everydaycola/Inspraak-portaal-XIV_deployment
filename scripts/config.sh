@@ -51,3 +51,6 @@ DB_INSTANCE_NAME="postgres-db"
 DB_REGION="europe-west1"
 SQL_TIER="db-perf-optimized-N-2"
 SQL_VERSION="POSTGRES_17"
+
+# Bucket var
+BUCKET_NAME="ip14"
