@@ -32,6 +32,7 @@ setup_managed_instance_group() {
             --base-instance-name=web-instance \
             --size=$MIN_INSTANCES \
             --template="$INSTANCE_TEMPLATE_NAME" \
+            --initial-delay=240 \
             --zone="$ZONE"
         echo_in_green "MIG Created."
 
@@ -47,7 +48,7 @@ setup_managed_instance_group() {
             --min-num-replicas="$MIN_INSTANCES" \
             --max-num-replicas="$MAX_INSTANCES" \
             --target-cpu-utilization="$TARGET_CPU_UTILIZATION" \
-            --cool-down-period=60
+            --cool-down-period=240
     else
         echo_in_yellow "Managed Instance Group '$INSTANCE_GROUP_NAME' already exists. Skipping creation and autoscaler setup."
     fi
