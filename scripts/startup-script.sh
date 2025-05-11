@@ -93,7 +93,6 @@ fi
 # Get Cloud SQL variables from Secret Manager
 INSTANCE_CONNECTION_NAME=$(gcloud secrets versions access latest --secret=cloud_sql_instance_connection_name)
 DB_PASSWORD=$(gcloud secrets versions access latest --secret=cloud_sql_password)
-#DB_USER=$(gcloud secrets versions access latest --secret=cloud_sql_user)
 DB_USER="postgres"
 
 # Retrieve Redis Private IP
@@ -109,16 +108,14 @@ fi
 # Retrieve MailJet Secrets
 MJ_APIKEY_PUBLIC=$(gcloud secrets versions access latest --secret=mj-api-key-public)
 MJ_APIKEY_PRIVATE=$(gcloud secrets versions access latest --secret=mj-api-key-secret)
+PINC_API_KEY=$(gcloud secrets versions access latest --secret=pinc_api_key)
 
 # Set environment variable
 export MJ_APIKEY_PUBLIC="$MJ_APIKEY_PUBLIC"
 export MJ_APIKEY_PRIVATE="$MJ_APIKEY_PRIVATE"
 export REDIS_PRIVATE_IP="$REDIS_PRIVATE_IP"
 export PGPASSWORD="$DB_PASSWORD"
-
-echo "INSTANCE_CONNECTION_NAME: $INSTANCE_CONNECTION_NAME"
-echo "DB_USER: $DB_USER"
-echo "DB_PASSWORD: $DB_PASSWORD"
+export PINC_API_KEY="$PINC_API_KEY"
 
 # Check if secrets were retrieved
 if [ -z "$INSTANCE_CONNECTION_NAME" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_USER" ]; then
@@ -127,7 +124,6 @@ if [ -z "$INSTANCE_CONNECTION_NAME" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_USER
 fi
 
 export ConnectionStrings__DefaultConnection="host=127.0.0.1;Username=$DB_USER;password=$DB_PASSWORD;database=mydatabase"
-echo $ConnectionStrings__DefaultConnection
 
 # Cloud SQL Proxy Systemd Service
 cat <<EOF | sudo tee /etc/systemd/system/cloud-sql-proxy.service
@@ -251,6 +247,7 @@ Environment="ASPNETCORE_ENVIRONMENT=Development"
 Environment="ConnectionStrings__DefaultConnection=host=127.0.0.1;Username=$DB_USER;password='$DB_PASSWORD';database=mydatabase"
 Environment="Redis_Configuration=$REDIS_PRIVATE_IP:6379"
 Environment="Redis_InstanceName=my-redis-instance"
+Environment="PINC_API_KEY=$PINC_API_KEY"
 
 [Install]
 WantedBy=multi-user.target
