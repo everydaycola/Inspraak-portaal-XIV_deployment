@@ -1,7 +1,7 @@
 #!/bin/bash
 
-source colors.sh
-source config.sh
+source modules/colors.sh
+source modules/config.sh
 
 setup_load_balancer() {
     echo_in_green "Setting up Load Balancer..."
@@ -12,7 +12,7 @@ setup_load_balancer() {
         gcloud compute backend-services create "$BACKEND_SERVICE_NAME" \
             --protocol=HTTP \
             --port-name=http \
-            --health-checks="$HEALTH_CHECK_NAME" \
+            --health-checks="$HEALTH_CHECK_NAME_LB" \
             --network="$VPC_NETWORK_NAME" \
             --global
 
@@ -20,7 +20,7 @@ setup_load_balancer() {
         echo_in_green "Adding instance group to backend service..."
         gcloud compute backend-services add-backend "$BACKEND_SERVICE_NAME" \
             --instance-group="$INSTANCE_GROUP_NAME" \
-            --instance-group-zone="$ZONE" \
+            --instance-group-region="$REGION" \
             --global
     else
         echo_in_yellow "Backend Service '$BACKEND_SERVICE_NAME' already exists. Skipping creation."

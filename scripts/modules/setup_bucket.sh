@@ -1,16 +1,22 @@
 #!/bin/bash
 
 # Load configuration variables
-source config.sh
-source colors.sh
+source modules/config.sh
+source modules/colors.sh
 
 setup_bucket() {
-    # Check if bucket exists
     if gsutil ls -b "gs://${BUCKET_NAME}" &>/dev/null; then
-        echo "Bucket exists. Cleaning it..."
-        gsutil -m rm -r "gs://${BUCKET_NAME}/**"
+        read -p "Bucket 'gs://${BUCKET_NAME}' already exists. Do you want to [k]eep it or [r]emove and create a new one? (k/r): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Rr]$ ]]; then
+            echo_in_orange "Removing existing bucket and creating a new one..."
+            gcloud storage rm -r gs://$BUCKET_NAME
+            gcloud storage buckets create gs://$BUCKET_NAME
+        else
+            echo "Keeping existing bucket."
+        fi
     else
-        echo "Bucket doesn't exist. Creating it..."
-        gsutil mb -l us-central1 "gs://${BUCKET_NAME}"
+        echo "Bucket 'gs://${BUCKET_NAME}' doesn't exist. Creating it..."
+        gcloud storage buckets create gs://$BUCKET_NAME
     fi
 }

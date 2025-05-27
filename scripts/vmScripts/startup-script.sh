@@ -1,23 +1,25 @@
 #!/bin/bash
 set -x
 
+curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+sudo bash add-google-cloud-ops-agent-repo.sh --also-install
+
 # Variables
-GIT_REPO="git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git"
-GIT_BRANCH="#45setup-GCS"
+GIT_REPO="git@gitlab.com:kdg-ti/integratieproject-1/202425/14_team-14/development.git" # Plaats hier de link van je gitlab project
+GIT_BRANCH="development"                                                               # Plaats hier de branch die je wilt deployen
+DOMAIN_NAME="www.ip14.be"                                                              # Geef je domein-naam in
+
 APP_DIR="/root/myapp"
 APP_OUT_DIR="$APP_DIR/out"
 APP_LOG_FILE="/var/log/myapp/myapp.log"
 NGINX_CONFIG="/etc/nginx/sites-available/myapp"
-DOMAIN_NAME="www.ip14.be" #replace with your domain.
 
 # Ensure .ssh directory exists
 mkdir -p ~/.ssh
 chmod 700 ~/.ssh
 
 # Retrieve the private SSH key from Google Secret Manager
-echo "Retrieving and decoding SSH key..."
 gcloud secrets versions access latest --secret=gitlab_deploy_key | tr -d '\r\n' | base64 --decode >/root/.ssh/gitlab_key
-echo "SSH key retrieved and decoded."
 chmod 600 ~/.ssh/gitlab_key
 
 # Configure SSH to use GitLab
@@ -29,12 +31,10 @@ EOF
 chmod 600 ~/.ssh/config
 
 # Test SSH connection
-echo "Testing SSH connection..."
 ssh -T git@gitlab.com || {
   echo "SSH connection failed"
   exit 1
 }
-echo "SSH connection successful."
 
 # Install dependencies before cloning
 apt-get update && apt-get install -y nginx git postgresql-client curl
@@ -49,12 +49,10 @@ apt-get update
 apt-get install -y dotnet-sdk-8.0
 
 # Clone repository
-echo "Cloning repository..."
 git clone --branch "$GIT_BRANCH" "$GIT_REPO" "$APP_DIR" || {
   echo "Git clone failed"
   exit 1
 }
-echo "Repository cloned."
 
 cd "$APP_DIR"
 
@@ -64,13 +62,9 @@ dotnet --version || {
   exit 1
 }
 
-echo "Setting HOME environment variable..."
 export HOME=/root
 
-# Ensure necessary EF Core packages are installed
 cd "$APP_DIR"
-
-# Ensure we're in the /root directory
 cd /root
 
 # Download Cloud SQL Proxy
@@ -90,14 +84,15 @@ if [ ! -f /usr/local/bin/cloud-sql-proxy ]; then
   exit 1
 fi
 
-# Get Cloud SQL variables from Secret Manager
+# Retrieve Secrets
 INSTANCE_CONNECTION_NAME=$(gcloud secrets versions access latest --secret=cloud_sql_instance_connection_name)
 DB_PASSWORD=$(gcloud secrets versions access latest --secret=cloud_sql_password)
-DB_USER="postgres"
-
-# Retrieve Redis Private IP
-# TODO change this --region flag to be more dynamic
+DB_USER=$(gcloud secrets versions access latest --secret=cloud_sql_user)
 REDIS_PRIVATE_IP=$(gcloud redis instances describe my-redis-instance --region=europe-west1 --format="value(host)")
+SENDGRID_API_KEY=$(gcloud secrets versions access latest --secret=sndgrd-api-key-public)
+BUCKET=$(gcloud secrets versions access latest --secret=my-app-bucket-name)
+PINC_API_KEY=$(gcloud secrets versions access latest --secret=pinc_api_key)
+BUCKET=$(gcloud secrets versions access latest --secret=my-app-bucket-name)
 
 # Check if retrieval was successful
 if [ -z "$REDIS_PRIVATE_IP" ]; then
@@ -105,18 +100,8 @@ if [ -z "$REDIS_PRIVATE_IP" ]; then
   exit 1
 fi
 
-# Retrieve MailJet Secrets
-MJ_APIKEY_PUBLIC=$(gcloud secrets versions access latest --secret=mj-api-key-public)
-MJ_APIKEY_PRIVATE=$(gcloud secrets versions access latest --secret=mj-api-key-secret)
-BUCKET=$(gcloud secrets versions access latest --secret=my-app-bucket-name)
-PINC_API_KEY=$(gcloud secrets versions access latest --secret=pinc_api_key)
-
-# Retrieve bucket name
-BUCKET=$(gcloud secrets versions access latest --secret=my-app-bucket-name)
-
 # Set environment variable
-export MJ_APIKEY_PUBLIC="$MJ_APIKEY_PUBLIC"
-export MJ_APIKEY_PRIVATE="$MJ_APIKEY_PRIVATE"
+export SENDGRID_API_KEY="$SENDGRID_API_KEY"
 export REDIS_PRIVATE_IP="$REDIS_PRIVATE_IP"
 export PGPASSWORD="$DB_PASSWORD"
 export PINC_API_KEY="$PINC_API_KEY"
@@ -128,7 +113,7 @@ if [ -z "$INSTANCE_CONNECTION_NAME" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_USER
   exit 1
 fi
 
-export ConnectionStrings__DefaultConnection="host=127.0.0.1;Username=$DB_USER;password=$DB_PASSWORD;database=mydatabase"
+export ConnectionStrings__DefaultConnection="host=127.0.0.1;Username=postgres;password=$DB_PASSWORD;database=mydatabase"
 
 # Cloud SQL Proxy Systemd Service
 cat <<EOF | sudo tee /etc/systemd/system/cloud-sql-proxy.service
@@ -155,7 +140,7 @@ retries=0
 max_retries=200           # Increase retries
 service_check_interval=10 # Check service status every 10 retries
 
-while ! psql -h 127.0.0.1 -U "$DB_USER" -d mydatabase -c "SELECT 1;" >/dev/null 2>&1; do
+while ! psql -h 127.0.0.1 -U "postgres" -d mydatabase -c "SELECT 1;" >/dev/null 2>&1; do
   if [ $retries -ge $max_retries ]; then
     echo "ERROR: Cloud SQL Proxy failed to connect after $max_retries retries."
     exit 1
@@ -173,38 +158,30 @@ done
 echo "Cloud SQL Proxy is ready."
 
 # Test PostgreSQL connection
-psql -h 127.0.0.1 -U "$DB_USER" -d mydatabase -c "SELECT NOW();"
+psql -h 127.0.0.1 -U "postgres" -d mydatabase -c "SELECT NOW();"
 
 cd "$APP_DIR"
 
 # Install .NET EF tools (if not already installed)
-echo "Installing .NET EF tools..."
 dotnet tool install --global dotnet-ef || echo "dotnet-ef already installed."
 
 # Restore dependencies
-echo "Restoring dependencies..."
 dotnet restore
 
 # Run migrations
-echo "Checking for existing migrations..."
 if [ ! -d "$APP_DIR/Migrations" ]; then
   echo "No migrations found. Adding initial migration..."
   dotnet ef migrations add InitialCreate
 fi
 
 # Apply migrations and update the database
-echo "Updating database..."
 dotnet ef database update
 
-echo "Database migration and update completed successfully."
-
 # Build .NET application
-echo "Building .NET application..."
 dotnet publish -c Release -o "$APP_OUT_DIR" || {
   echo "Dotnet build failed"
   exit 1
 }
-echo "Application built."
 
 # Nginx configuration
 cat <<EOF >"$NGINX_CONFIG"
@@ -249,12 +226,13 @@ SyslogIdentifier=myapp
 StandardOutput=file:$APP_LOG_FILE
 StandardError=file:$APP_LOG_FILE
 Environment="ASPNETCORE_URLS=http://localhost:5000"
-Environment="ASPNETCORE_ENVIRONMENT=Development"
-Environment="ConnectionStrings__DefaultConnection=host=127.0.0.1;Username=$DB_USER;password='$DB_PASSWORD';database=mydatabase"
+#Environment="ASPNETCORE_ENVIRONMENT=Development"
+Environment="ConnectionStrings__DefaultConnection=host=127.0.0.1;Username=postgres;password='$DB_PASSWORD';database=mydatabase"
 Environment="Redis_Configuration=$REDIS_PRIVATE_IP:6379"
 Environment="Redis_InstanceName=my-redis-instance"
 Environment="GoogleCloud_BucketName=$BUCKET"
 Environment="PINC_API_KEY=$PINC_API_KEY"
+Environment="SENDGRID_API_KEY=$SENDGRID_API_KEY"
 
 [Install]
 WantedBy=multi-user.target

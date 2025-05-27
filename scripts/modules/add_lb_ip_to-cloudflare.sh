@@ -1,7 +1,7 @@
 #!/bin/bash
 
-source ./config.sh
-source ./secrets.sh
+source modules/config.sh
+source secrets/secrets.sh
 
 # --- Configuration ---
 DNS_TTL=300

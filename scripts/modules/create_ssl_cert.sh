@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Load configuration variables
-source config.sh
-source colors.sh
+source modules/config.sh
+source modules/colors.sh
 
 create_ssl_cert() {
     # Create DNS Authorization
