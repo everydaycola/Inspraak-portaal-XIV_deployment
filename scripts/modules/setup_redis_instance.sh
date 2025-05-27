@@ -2,7 +2,7 @@
 
 # this module will be used to setup a Redis instance
 # Which will be used to cache the session state (cookies) so we can use it over the VMs
-source config.sh
+source modules/config.sh
 
 setup_redis_instance() {
     echo_in_green "Setting up Redis instance..."

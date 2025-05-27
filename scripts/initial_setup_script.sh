@@ -1,10 +1,12 @@
 #!/bin/bash
 
-source colors.sh
-source config.sh
-source secrets.sh
+source modules/colors.sh
+source modules/config.sh
+source secrets/secrets.sh
 source modules/create_ssl_cert.sh
 source modules/add_lb_ip_to-cloudflare.sh
+source modules/setup_gitlab_ci_variables.sh
+source deploy_using_modules.sh
 
 # This script should be run ONCE when a new organization wants to use the scripts
 
@@ -134,6 +136,8 @@ setup_iam_permissions() {
         "roles/storage.objectAdmin"
         "roles/storage.objectCreator"
         "roles/storage.objectViewer"
+        "roles/monitoring.metricWriter"
+        "roles/logging.logWriter"
     )
 
     for ROLE in "${ROLES_TO_GRANT[@]}"; do
@@ -161,7 +165,7 @@ setup_iam_permissions() {
         --iam-account="$CD_SA_FASE_EMAIL" \
         --project="$PROJECT_ID"
 
-    echo "Key saved to $KEY_OUTPUT_PATH -> follow the correct steps in the README to use this file correctly" # The content of this file needs to be added to gitlab repo > Settings > CI/CD > Variables (Type: file, Visible, disable protect variable, key: GCP_SA_KEY_JSON)
+    set_gitlab_file_as_variable "GCP_SA_KEY_JSON" $KEY_OUTPUT_PATH
     echo_in_green "IAM permissions granted to '$SERVICE_ACCOUNT_EMAIL' and '$CD_SA_FASE_EMAIL'."
 }
 
@@ -196,20 +200,38 @@ generate_deploy_key() {
     echo_in_blue "Generating a new SSH deploy key pair..."
     KEY_PATH="$HOME/.ssh/gitlab_deploy_key"
     ssh-keygen -t ed25519 -f $KEY_PATH -N ""
+    GITLAB_API="https://gitlab.com/api/v4"
     if [ $? -eq 0 ]; then
         echo_in_green "SSH deploy key pair generated successfully at '$KEY_PATH' and '$KEY_PATH.pub'."
         PRIVATE_KEY=$(cat "$KEY_PATH" | base64)
         PUBLIC_KEY=$(cat "$KEY_PATH.pub")
+
         create_secret "gitlab_deploy_key"
         add_secret_version "gitlab_deploy_key" "$PRIVATE_KEY"
+
         if [ $? -eq 0 ]; then
-            echo_in_green "Private key stored in Secret Manager as 'gitlab_deploy_key'."
-            echo_in_yellow "\n--- Public Key for GitLab ---"
-            echo_in_yellow "Please add the following public key to your GitLab project's"
-            echo_in_yellow "'Repository' -> 'Deploy Keys' settings:"
-            echo_in_yellow "$PUBLIC_KEY"
-            echo_in_yellow "Ensure 'Write access allowed' is unchecked unless necessary."
-            echo_in_yellow "---"
+            echo_in_green "Private key stored in Secret Manager."
+
+            echo_in_blue "Adding public key to GitLab deploy keys..."
+            DATA="{\"title\": \"Auto-generated deploy key\", \"key\": \"$PUBLIC_KEY\", \"can_push\": false}"
+            TMP_JSON=$(mktemp)
+
+            # Use GitLab API to add deploy key
+            HTTP_STATUS=$(curl --silent --show-error \
+                --write-out "%{http_code}" \
+                --output "$TMP_JSON" \
+                --request POST \
+                --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+                --header "Content-Type: application/json" \
+                --data "$DATA" \
+                "$GITLAB_API/projects/$GITLAB_PROJECT_ID/deploy_keys")
+            if [ "$HTTP_STATUS" -eq 201 ]; then
+                echo_in_green "Public deploy key successfully added to GitLab project."
+            elif [ "$HTTP_STATUS" -eq 400 ]; then
+                echo_in_yellow "Deploy key already exists or is invalid. Please check GitLab UI."
+            else
+                echo_in_red "Failed to add deploy key to GitLab. Status code: $HTTP_STATUS"
+            fi
         else
             echo_in_red "Error storing private key in Secret Manager."
         fi
@@ -226,7 +248,6 @@ setup_secrets() {
 
     # Create cloud sql instance connection name secret
     CLOUD_SQL_CONN=$PROJECT_ID:$DB_REGION:$DB_INSTANCE_NAME
-    echo "$CLOUD_SQL_CONN"
     create_secret "cloud_sql_instance_connection_name"
     add_secret_version "cloud_sql_instance_connection_name" "$CLOUD_SQL_CONN"
 
@@ -246,40 +267,39 @@ setup_secrets() {
         echo_in_yellow "Cloud SQL user not provided, skipping secret creation."
     fi
 
-    if [[ -n "$MJ_PUBLIC_API_KEY" ]]; then
-        create_secret "mj-api-key-public"
-        add_secret_version "mj-api-key-public" "$MJ_PUBLIC_API_KEY"
+    if [[ -n "$SENDGRID_API_KEY" ]]; then
+        create_secret "sndgrd-api-key-public"
+        add_secret_version "sndgrd-api-key-public" "$SENDGRID_API_KEY"
     else
-        echo_in_yellow "Mailjet Public API Key not provided, skipping secret creation."
+        echo_in_yellow "Sendgrid Public API Key not provided, skipping secret creation."
     fi
 
-    if [[ -n "$MJ_PRIVATE_API_KEY" ]]; then
-        create_secret "mj-api-key-secret"
-        add_secret_version "mj-api-key-secret" "$MJ_PRIVATE_API_KEY"
-    else
-        echo_in_yellow "Mailjet Private API Key not provided, skipping secret creation."
-    fi
-
+    # Adding cloudflare key using a file
     create_secret "cloudflare-origin-private-key"
-    gcloud secrets versions add "cloudflare-origin-private-key" --data-file="./cf-key.pem" --project=$PROJECT_ID
+    gcloud secrets versions add "cloudflare-origin-private-key" --data-file="secrets/cf-key.pem" --project=$PROJECT_ID
 
+    # Adding cloudflare cert using a file
     create_secret "cloudflare-origin-certificate"
-    gcloud secrets versions add cloudflare-origin-certificate --data-file="./cf-cert.pem" --project=$PROJECT_ID
+    gcloud secrets versions add cloudflare-origin-certificate --data-file="secrets/cf-cert.pem" --project=$PROJECT_ID
 
     # Create SSL cert
-    echo $PROJECT_ID
     gcloud beta compute ssl-certificates create $SSL_CERT \
         --project=$PROJECT_ID \
         --global \
-        --private-key="./cf-key.pem" \
-        --certificate="./cf-cert.pem"
+        --private-key="secrets/cf-key.pem" \
+        --certificate="secrets/cf-cert.pem"
     create_ssl_cert
 
     create_secret "pinc_api_key"
     add_secret_version "pinc_api_key" "$PINC_API_KEY"
 
     create_secret "my-app-bucket-name"
-    add_secret_version "my-app-bucket-name" "$APP_BUCKET"
+    add_secret_version "my-app-bucket-name" "$BUCKET_NAME"
+
+    # Add variables to gitlab CI
+    set_gitlab_variable "PROJECT_ID" "$PROJECT_ID"
+    set_gitlab_variable "MIG_NAME" "$INSTANCE_GROUP_NAME"
+    set_gitlab_variable "REGION" "$REGION"
 }
 
 setup_vpc_network_initial() {
@@ -338,17 +358,6 @@ reserve_static_ip() {
     if [ $? -eq 0 ]; then
         STATIC_IP=$(gcloud compute addresses describe "$STATIC_IP_NAME" --global --project="$PROJECT_ID" --format="value(address)")
         echo_in_green "Global static IP address '$STATIC_IP' reserved with name '$STATIC_IP_NAME'."
-        echo_in_yellow "You can use this IP for your load balancer or other global resources."
-
-        echo_in_yellow "\n--- Domain Name Configuration ---"
-        echo_in_yellow "To make your application accessible via your domain name (e.g., www.yourdomain.com),"
-        echo_in_yellow "you will need to configure the DNS records at your domain registrar."
-        echo_in_yellow "Once your deployment script has finished running successfully,"
-        echo_in_yellow "it will output the public IP address of your load balancer."
-        echo_in_yellow "You will need to create an 'A' record (and potentially a 'CNAME' record for 'www') at your registrar"
-        echo_in_yellow "that points to this IP address."
-        echo_in_yellow "Please refer to your domain registrar's documentation for instructions on how to manage DNS records."
-        echo_in_yellow "---"
     else
         echo_in_red "Error reserving global static IP address '$STATIC_IP_NAME'."
     fi
@@ -381,3 +390,5 @@ setup_iam_permissions
 echo_in_green "Initial project setup for '$PROJECT_ID' complete."
 echo_in_yellow "You can now run your main deployment script to provision resources."
 echo_in_yellow "Remember the Project ID: ${PROJECT_ID}"
+
+deploy_using_modules

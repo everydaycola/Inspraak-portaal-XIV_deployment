@@ -1,33 +1,7 @@
 #!/bin/bash
 
-source colors.sh
-source config.sh
-
-setup_vpc_network() {
-    # Create VPC Network (if it doesn't exist)
-    if gcloud compute networks list --filter="name=$VPC_NETWORK_NAME" --format="value(name)" 2>/dev/null | grep -q "$VPC_NETWORK_NAME"; then
-        echo_in_yellow "VPC network $VPC_NETWORK_NAME already exists."
-    else
-        echo_in_green "Creating VPC network: $VPC_NETWORK_NAME"
-        gcloud compute networks create "$VPC_NETWORK_NAME" --subnet-mode=custom
-        if [ $? -ne 0 ]; then
-            echo_in_red "Failed to create VPC network."
-            return 1
-        fi
-    fi
-
-    # Create Subnet (if it doesn't exist)
-    if ! gcloud compute networks subnets describe "$VPC_SUBNET_NAME" --region="$VPC_NETWORK_REGION" --network="$VPC_NETWORK_NAME" >/dev/null 2>&1; then
-        echo_in_green "Creating Subnet: $VPC_SUBNET_NAME"
-        gcloud compute networks subnets create "$VPC_SUBNET_NAME" --network="$VPC_NETWORK_NAME" --range="$VPC_SUBNET_RANGE" --region="$VPC_NETWORK_REGION"
-        if [ $? -ne 0 ]; then
-            echo_in_red "Failed to create Subnet."
-            return 1
-        fi
-    else
-        echo_in_yellow "Subnet $VPC_SUBNET_NAME already exists."
-    fi
-}
+source modules/colors.sh
+source modules/config.sh
 
 setup_vpc_peering() {
     local network_name="$VPC_NETWORK_NAME"

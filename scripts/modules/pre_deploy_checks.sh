@@ -1,7 +1,7 @@
 #!/bin/bash
 
-source colors.sh
-source config.sh
+source modules/colors.sh
+source modules/config.sh
 
 # Function to check if a given command exists
 command_exists() {

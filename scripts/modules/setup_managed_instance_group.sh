@@ -1,7 +1,7 @@
 #!/bin/bash
 
-source colors.sh
-source config.sh
+source modules/colors.sh
+source modules/config.sh
 
 setup_managed_instance_group() {
     echo_in_green "Setting up Managed Instance Group..."
@@ -33,18 +33,18 @@ setup_managed_instance_group() {
             --size=$MIN_INSTANCES \
             --template="$INSTANCE_TEMPLATE_NAME" \
             --initial-delay=240 \
-            --zone="$ZONE"
+            --region="$REGION"
         echo_in_green "MIG Created."
 
         echo_in_green "Setting named ports..."
         gcloud compute instance-groups set-named-ports "$INSTANCE_GROUP_NAME" \
             --named-ports=http:80 \
-            --zone="$ZONE"
+            --region="$REGION"
 
         echo_in_green "Setting up autoscaler..."
         # Set up Autoscaler
         gcloud compute instance-groups managed set-autoscaling "$INSTANCE_GROUP_NAME" \
-            --zone="$ZONE" \
+            --region="$REGION" \
             --min-num-replicas="$MIN_INSTANCES" \
             --max-num-replicas="$MAX_INSTANCES" \
             --target-cpu-utilization="$TARGET_CPU_UTILIZATION" \

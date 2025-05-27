@@ -1,48 +1,44 @@
 #!/bin/bash
 
 # Load configuration variables
-source config.sh
-source colors.sh
+source modules/config.sh
+source modules/colors.sh
 
 # Redis Instance Deletion
 if gcloud redis instances describe my-redis-instance --region="$REGION" >/dev/null 2>&1; then
-        echo_in_orange "Deleting Redis instance 'my-redis-instance'..."
-        gcloud redis instances delete my-redis-instance --region="$REGION" --quiet
+    echo_in_orange "Deleting Redis instance 'my-redis-instance'..."
+    gcloud redis instances delete my-redis-instance --region="$REGION" --quiet
 else
-        echo_in_red "Redis instance 'my-redis-instance' does not exist."
+    echo_in_red "Redis instance 'my-redis-instance' does not exist."
 fi
 
 # Cloud SQL Instance Deletion
 if gcloud sql instances describe "$DB_INSTANCE_NAME" >/dev/null 2>&1; then
-        echo_in_orange "Deleting Cloud SQL instance '$DB_INSTANCE_NAME'..."
-        gcloud sql instances delete "$DB_INSTANCE_NAME" --quiet
+    echo_in_orange "Deleting Cloud SQL instance '$DB_INSTANCE_NAME'..."
+    gcloud sql instances delete "$DB_INSTANCE_NAME" --quiet
 else
-        echo_in_red "Cloud SQL instance '$DB_INSTANCE_NAME' does not exist."
+    echo_in_red "Cloud SQL instance '$DB_INSTANCE_NAME' does not exist."
 fi
 
 # Private IP Address range deletion.
 if gcloud compute addresses describe google-managed-services-range --global >/dev/null 2>&1; then
-        echo_in_orange "Deleting private IP address range 'google-managed-services-range'..."
-        gcloud compute addresses delete google-managed-services-range --global --quiet
+    echo_in_orange "Deleting private IP address range 'google-managed-services-range'..."
+    gcloud compute addresses delete google-managed-services-range --global --quiet
 else
-        echo_in_red "private IP address range 'google-managed-services-range' does not exist."
+    echo_in_red "private IP address range 'google-managed-services-range' does not exist."
 fi
 
 #Private Service Access peering deletion.
 if gcloud services vpc-peerings list --network="$VPC_NETWORK_NAME" | grep servicenetworking.googleapis.com >/dev/null 2>&1; then
-        echo_in_orange "Deleting VPC peering connection..."
-        gcloud services vpc-peerings delete --service=servicenetworking.googleapis.com --network="$VPC_NETWORK_NAME" --quiet
+    echo_in_orange "Deleting VPC peering connection..."
+    gcloud services vpc-peerings delete --service=servicenetworking.googleapis.com --network="$VPC_NETWORK_NAME" --quiet
 else
-        echo_in_red "VPC peering connection does not exist."
+    echo_in_red "VPC peering connection does not exist."
 fi
 
 # Delete Forwarding Rules
 echo_in_orange "Deleting Forwarding Rules..."
-gcloud compute forwarding-rules delete "$FORWARDING_RULE_HTTP_NAME" --global --quiet
 gcloud compute forwarding-rules delete "$FORWARDING_RULE_HTTPS_NAME" --global --quiet
-
-echo_in_orange "Deleting HTTP proxy..."
-gcloud compute target-http-proxies delete "$HTTP_PROXY_NAME" --quiet
 
 #Delete HTTPS proxy
 echo_in_orange "Deleting HTTPS proxy..."
@@ -55,13 +51,17 @@ echo_in_orange "Deleting backend service..."
 gcloud compute backend-services delete "$BACKEND_SERVICE_NAME" --global --quiet
 
 echo_in_orange "Deleting health check..."
-gcloud compute health-checks delete "$HEALTH_CHECK_NAME" --quiet
+gcloud compute health-checks delete "$HEALTH_CHECK_NAME_LB" --quiet
+gcloud compute health-checks delete "$HEALTH_CHECK_NAME_MIG" --quiet
 
 echo_in_orange "Deleting instance group..."
-gcloud compute instance-groups managed delete "$INSTANCE_GROUP_NAME" --zone="$ZONE" --quiet
+gcloud compute instance-groups managed delete "$INSTANCE_GROUP_NAME" --region="$REGION" --quiet
 
 echo_in_orange "Deleting instance template..."
 gcloud compute instance-templates delete "$INSTANCE_TEMPLATE_NAME" --quiet
+
+# echo_in_orange "Deleting bucket"
+# gcloud storage buckets delete gs://$BUCKET_NAME
 
 echo_in_orange "Unsetting gcloud variables"
 gcloud config unset project

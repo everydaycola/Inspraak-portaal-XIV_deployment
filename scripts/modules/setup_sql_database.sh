@@ -1,7 +1,7 @@
 #!/bin/bash
 
-source colors.sh
-source config.sh
+source modules/colors.sh
+source modules/config.sh
 
 setup_sql_database() {
     # Collecting Credentials from the secret manager
@@ -19,7 +19,10 @@ setup_sql_database() {
             --tier="$SQL_TIER" \
             --region="$DB_REGION" \
             --root-password="$DB_PASSWORD" \
-            --network="$VPC_NETWORK_NAME"
+            --network="$VPC_NETWORK_NAME" \
+            --backup \
+            --backup-start-time="$BACKUP_START_TIME" \
+            --retained-backups-count="$RETAINED_BACKUPS"
     fi
     echo_in_purple "Cloud SQL Instance '$DB_INSTANCE_NAME'"
 
