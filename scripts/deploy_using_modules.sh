@@ -33,6 +33,6 @@ deploy_using_modules() {
 if [ "$1" = "deploy" ]; then
     deploy_using_modules
 else
-    echo_in_yellow "To deploy the infrastructure, please use the 'deploy' flag: ./deploy.sh deploy"
-    echo_in_yellow "For example: ./deploy.sh deploy"
+    echo_in_yellow "To only deploy the infrastructure, please use the 'deploy' flag: ./deploy_using_modules.sh deploy"
+    echo_in_yellow "For example: ./deploy_using_modules.sh deploy"
 fi

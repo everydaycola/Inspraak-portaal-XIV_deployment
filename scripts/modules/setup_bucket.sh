@@ -29,5 +29,3 @@ setup_bucket() {
             --no-public-access-prevention
     fi
 }
-
-setup_bucket
