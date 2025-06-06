@@ -332,7 +332,7 @@ gcloud projects describe $PROJECT_ID
 | europe-west2
 | 5AF5-2C11-0467
 | AC1B-F435
-| 205.5446
+| 32.9169
 
 | Static IP (Networking)
 | External IP Charge on a Standard VM
@@ -396,7 +396,7 @@ gcloud projects describe $PROJECT_ID
 |
 |
 |
-| *374.8002*
+| *202.1769*
 |===
 
 Deze prijzen zijn een *schatting* in EURO, verkregen op *27/05/2025* via de Google Cloud Service 'Cost Estimation'.
