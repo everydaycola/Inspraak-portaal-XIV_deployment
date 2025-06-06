@@ -303,28 +303,28 @@ gcloud projects describe $PROJECT_ID
 | 1.7598
 
 | PostgreSQL (Cloud SQL)
-| Cloud SQL for PostgreSQL Zonal - IOPS in EMEA
+| Cloud SQL for PostgreSQL Zonal - Enterprise-Plus vCPU in EMEA
 | 1460
-| europe-west2
+| europe-west1
 | 9662-B51E-5089
-| 2154-E036
-| 53.05621
+| 26D3-62D5-51EF
+| 69.31913
 
 | PostgreSQL (Cloud SQL)
-| Cloud SQL for PostgreSQL Zonal - RAM in EMEA
-| 5475
-| europe-west2
+| Cloud SQL for PostgreSQL Zonal - Enterprise-Plus RAM in EMEA
+| 11680
+| europe-west1
 | 9662-B51E-5089
-| 8A88-5E4E
-| 33.72217
+| 5149-8F2A-F799
+| 93.97454
 
 | PostgreSQL (Cloud SQL)
-| Cloud SQL for PostgreSQL Zonal - Standard storage in EMEA
-| 73000
-| europe-west2
+| Cloud SQL for PostgreSQL Zonal - Enterprise-Plus Standard Storage in EMEA
+| 11680
+| europe-west1
 | 9662-B51E-5089
-| B14E-2B60
-| 13.931
+| FC30-179E-5494
+| 2.23973
 
 | Redis (Cloud Memorystore)
 | Redis Capacity Basic M2 Belgium
@@ -396,7 +396,7 @@ gcloud projects describe $PROJECT_ID
 |
 |
 |
-| *202.1769*
+| *266.09695*
 |===
 
 Deze prijzen zijn een *schatting* in EURO, verkregen op *27/05/2025* via de Google Cloud Service 'Cost Estimation'.

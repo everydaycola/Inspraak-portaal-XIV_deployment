@@ -250,24 +250,24 @@ Als je heel je google cloud project wilt verwijderen run dan `./delete_project.s
 
 ## Schatting Maandelijkse Kost
 
-| service_display_name       | name                                                        | quantity | region       | service_id        | sku           | total_price_EUR |
-|----------------------------|-------------------------------------------------------------|----------|--------------|-------------------|---------------|-----------------|
-| Secret Manager             | Secret version replica storage                            | 10       | global       | EE82-7A5E-775C    | 7756-ADEF     | 0.21118         |
-| VMs (Compute Engine)       | E2 Instance:Core running in EMEA                          | 1460     | europe-west2 | 6F81-5844-46A     | 9FE0-8F60     | 30.8232         |
-| VMs (Compute Engine)       | E2 Instance:Ram running in EMEA                           | 5840     | europe-west2 | 6F81-5844-46A     | F268-6CE7     | 16.52625        |
-| VMs (Compute Engine)       | Balanced PD Capacity                                        | 20       | europe-west2 | 6F81-5844-46A     | 6AE1-525F     | 1.7598          |
-| PostgreSQL (Cloud SQL)     | Cloud SQL for PostgreSQL Zonal - IOPS in EMEA             | 1460     | europe-west2 | 9662-B51E-5089    | 2154-E036     | 53.05621        |
-| PostgreSQL (Cloud SQL)     | Cloud SQL for PostgreSQL Zonal - RAM in EMEA              | 5475     | europe-west2 | 9662-B51E-5089    | 8A88-5E4E     | 33.72217        |
-| PostgreSQL (Cloud SQL)     | Cloud SQL for PostgreSQL Zonal - Standard storage in EMEA | 73000    | europe-west2 | 9662-B51E-5089    | B14E-2B60     | 13.931          |
-| Redis (Cloud Memorystore)  | Redis Capacity Basic M2 Belgium                           | 7300     | europe-west2 | 5AF5-2C11-0467    | AC1B-F435     | 32.9169        |
-| Static IP (Networking)     | External IP Charge on a Standard VM                       | 1        | global       | 6F81-5844-46A     | C054-7F72     | 0               |
-| Static IP (Networking)     | External IP Charge on a Spot/Preemptible VM               | 0        | global       | 6F81-5844-46A     | 4AF8-7C1F     | 0               |
-| Static IP (Networking)     | Static Ip Charge                                          | 0        | europe-west2 | 6F81-5844-46A     | 66A2-68EA     | 0               |
-| Load Balancer (Networking) | Regional External Application Load Balancer Inbound Data Processing for Belgium (europe-west1) | 100      | europe-west2 | E505-509A-58F9    | 4CA1-8FBD     | 0.70392         |
-| Load Balancer (Networking) | Regional External Application Load Balancer Outbound Data Processing for Belgium (europe-west1) | 100      | europe-west2 | E505-509A-58F9    | 6447-DBD0     | 0.70392         |
-| Load Balancer (Networking) | Regional External Proxy Network Load Balancer Forwarding Rule Minimum for Belgium (europe-west1) | 1        | europe-west2 | E505-509A-58F9    | A1EB-4344     | 16.05818        |
-| Bucket (Cloud Storage)     | Standard Storage Belgium                                  | 100      | europe-west2 | 95FF-2EF5-5541    | A703-5CB6     | 1.7598          |
-| **Total Price:** |                                                             |          |              |                   |               | **202.1769** |
+| service_display_name | name | quantity | region | service_id | sku | total_price_EUR |
+|---|---|---|---|---|---|---|
+| Secret Manager | Secret version replica storage | 10 | global | EE82-7A5E-775C | 7756-ADEF | 0.21118 |
+| VMs (Compute Engine) | E2 Instance:Core running in EMEA | 1460 | europe-west2 | 6F81-5844-46A | 9FE0-8F60 | 30.8232 |
+| VMs (Compute Engine) | E2 Instance:Ram running in EMEA | 5840 | europe-west2 | 6F81-5844-46A | F268-6CE7 | 16.52625 |
+| VMs (Compute Engine) | Balanced PD Capacity | 20 | europe-west2 | 6F81-5844-46A | 6AE1-525F | 1.7598 |
+| PostgreSQL (Cloud SQL) | Cloud SQL for PostgreSQL Zonal - IOPS in EMEA | 1460 | europe-west1 | 9662-B51E-5089 | 26D3-62D5-51EF | 69.31913 |
+| PostgreSQL (Cloud SQL) | Cloud SQL for PostgreSQL Zonal - RAM in EMEA | 11680 | europe-west1 | 9662-B51E-5089 | 5149-8F2A-F799 | 93.97454 |
+| PostgreSQL (Cloud SQL) | Cloud SQL for PostgreSQL Zonal - Standard storage in EMEA | 11680 | europe-west1 | 9662-B51E-5089 | FC30-179E-5494 | 2.23973 |
+| Redis (Cloud Memorystore) | Redis Capacity Basic M2 Belgium | 7300 | europe-west2 | 5AF5-2C11-0467 | AC1B-F435 | 32.9169 |
+| Static IP (Networking) | External IP Charge on a Standard VM | 1 | global | 6F81-5844-46A | C054-7F72 | 0 |
+| Static IP (Networking) | External IP Charge on a Spot/Preemptible VM | 0 | global | 6F81-5844-46A | 4AF8-7C1F | 0 |
+| Static IP (Networking) | Static Ip Charge | 0 | europe-west2 | 6F81-5844-46A | 66A2-68EA | 0 |
+| Load Balancer (Networking) | Regional External Application Load Balancer Inbound Data Processing for Belgium (europe-west1) | 100 | europe-west2 | E505-509A-58F9 | 4CA1-8FBD | 0.70392 |
+| Load Balancer (Networking) | Regional External Application Load Balancer Outbound Data Processing for Belgium (europe-west1) | 100 | europe-west2 | E505-509A-58F9 | 6447-DBD0 | 0.70392 |
+| Load Balancer (Networking) | Regional External Proxy Network Load Balancer Forwarding Rule Minimum for Belgium (europe-west1) | 1 | europe-west2 | E505-509A-58F9 | A1EB-4344 | 16.05818 |
+| Bucket (Cloud Storage) | Standard Storage Belgium | 100 | europe-west2 | 95FF-2EF5-5541 | A703-5CB6 | 1.7598 |
+| **Total Price:** | | | | | | **266.09695** |
 
 Deze prijzen zijn een **schatting** in EURO, verkregen op **27/05/2025** via de Google Cloud Service 'Cost Estimation'.
 
